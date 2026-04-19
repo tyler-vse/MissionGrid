@@ -663,50 +663,79 @@ export function SetupWizard() {
                 </p>
               )}
 
-              <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3 text-sm">
+              <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3 text-sm">
                 <p className="font-medium text-foreground">
                   Allow sign-in links to return here
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  In Supabase &rarr; Authentication &rarr; URL Configuration, add this site to the <span className="font-medium text-foreground">Site URL</span> and <span className="font-medium text-foreground">Redirect URLs</span> allowlist so admin and volunteer magic links can land back on this app:
+                  In Supabase &rarr; Authentication &rarr; URL Configuration, paste the values below into the <span className="font-medium text-foreground">Site URL</span> and <span className="font-medium text-foreground">Redirect URLs</span> fields so admin and volunteer magic links can land back on this app.
                 </p>
-                <pre className="whitespace-pre-wrap break-all rounded border bg-background p-2 font-mono text-xs text-foreground">
-{`${window.location.origin}
-${window.location.origin}${APP_CONFIG.authCallbackRoute}`}
-                </pre>
-                <div className="flex flex-wrap gap-2">
+
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-foreground">Site URL</p>
+                  <pre className="whitespace-pre-wrap break-all rounded border bg-background p-2 font-mono text-xs text-foreground">
+{window.location.origin}
+                  </pre>
                   <Button
                     type="button"
                     size="sm"
                     variant="secondary"
                     onClick={async () => {
-                      const text = `${window.location.origin}\n${window.location.origin}${APP_CONFIG.authCallbackRoute}`
+                      const text = window.location.origin
                       try {
                         await navigator.clipboard.writeText(text)
-                        toast.success('URLs copied')
+                        toast.success('Site URL copied')
                       } catch {
                         toast.error(
-                          'Clipboard blocked \u2014 select the URLs above and copy manually.',
+                          'Clipboard blocked \u2014 select the URL above and copy manually.',
                         )
                       }
                     }}
                   >
-                    Copy redirect URLs
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const projectUrl =
-                        form.getValues('supabaseUrl')?.trim() ?? ''
-                      const target = deriveSupabaseUrlConfigUrl(projectUrl)
-                      window.open(target, '_blank', 'noopener,noreferrer')
-                    }}
-                  >
-                    Open URL Configuration
+                    Copy Site URL
                   </Button>
                 </div>
+
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-foreground">Redirect URLs</p>
+                  <pre className="whitespace-pre-wrap break-all rounded border bg-background p-2 font-mono text-xs text-foreground">
+{`${window.location.origin}, ${window.location.origin}${APP_CONFIG.authCallbackRoute}`}
+                  </pre>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={async () => {
+                        const text = `${window.location.origin}, ${window.location.origin}${APP_CONFIG.authCallbackRoute}`
+                        try {
+                          await navigator.clipboard.writeText(text)
+                          toast.success('Redirect URLs copied')
+                        } catch {
+                          toast.error(
+                            'Clipboard blocked \u2014 select the URLs above and copy manually.',
+                          )
+                        }
+                      }}
+                    >
+                      Copy redirect URLs
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const projectUrl =
+                          form.getValues('supabaseUrl')?.trim() ?? ''
+                        const target = deriveSupabaseUrlConfigUrl(projectUrl)
+                        window.open(target, '_blank', 'noopener,noreferrer')
+                      }}
+                    >
+                      Open URL Configuration
+                    </Button>
+                  </div>
+                </div>
+
                 <p className="text-xs text-muted-foreground">
                   You only need to do this once per Supabase project. Without
                   it, magic-link emails can&apos;t send people back to
