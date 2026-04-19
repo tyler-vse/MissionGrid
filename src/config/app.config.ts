@@ -34,6 +34,7 @@ export const APP_CONFIG = {
     'completed',
     'skipped',
     'pending_review',
+    'no_go',
   ] as const,
 } as const
 

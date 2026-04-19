@@ -16,12 +16,17 @@ export interface CreateSuggestedPlaceInput {
   organizationId: string
   name: string
   address: string
-  lat: number
-  lng: number
+  lat?: number
+  lng?: number
   externalPlaceId?: string
   types?: string[]
   submittedByVolunteerId?: string
   source?: string
+}
+
+export interface SetLocationNoGoInput {
+  locationId: string
+  reason?: string
 }
 
 export interface RecentActivityEvent extends LocationEvent {
@@ -37,6 +42,8 @@ export interface CreateCampaignInput {
   startsAt?: string
   endsAt?: string
   status?: CampaignStatus
+  /** Zones the campaign should cover. Replaces any existing links. */
+  serviceAreaIds?: string[]
 }
 
 export interface UpdateCampaignInput {
@@ -46,6 +53,8 @@ export interface UpdateCampaignInput {
   startsAt?: string
   endsAt?: string
   status?: CampaignStatus
+  /** Replaces the campaign's full set of zones when provided. */
+  serviceAreaIds?: string[]
 }
 
 export interface StartShiftInput {
@@ -115,6 +124,18 @@ export interface BackendProvider {
   getCampaign?(id: string): Promise<Campaign | null>
   createCampaign?(input: CreateCampaignInput): Promise<Campaign>
   updateCampaign?(id: string, patch: UpdateCampaignInput): Promise<Campaign>
+  /** Replaces the full set of zones linked to a campaign. */
+  setCampaignZones?(
+    campaignId: string,
+    serviceAreaIds: string[],
+  ): Promise<Campaign>
+
+  /** Admin-only location management (optional — requires upgrade SQL). */
+  listAllLocations?(orgId: string): Promise<Location[]>
+  archiveLocation?(locationId: string): Promise<Location>
+  restoreLocation?(locationId: string): Promise<Location>
+  setLocationNoGo?(input: SetLocationNoGoInput): Promise<Location>
+  clearLocationNoGo?(locationId: string): Promise<Location>
 
   /** Shifts lifecycle (optional). */
   startShift?(input: StartShiftInput): Promise<Shift>

@@ -18,7 +18,10 @@ function haversineMeters(a: Coord, b: Coord): number {
 }
 
 /** Rough minutes: travel + quick interaction at door */
-function estimateMinutesForStop(prev: Coord, next: Location): number {
+function estimateMinutesForStop(
+  prev: Coord,
+  next: Location & { lat: number; lng: number },
+): number {
   const meters = haversineMeters(prev, next)
   const walkMin = Math.min(12, meters / 400)
   return walkMin + 3
@@ -42,10 +45,13 @@ export function pickStopsForTimeWindow(input: PickStopsInput): RouteSuggestion {
     input
 
   const candidates = locations.filter(
-    (l) =>
+    (l): l is Location & { lat: number; lng: number } =>
+      l.lat != null &&
+      l.lng != null &&
       l.status !== 'completed' &&
       l.status !== 'skipped' &&
       l.status !== 'pending_review' &&
+      l.status !== 'no_go' &&
       (l.status === 'available' ||
         (l.status === 'claimed' && l.claimedByVolunteerId === volunteerId)),
   )

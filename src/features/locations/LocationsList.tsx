@@ -49,6 +49,7 @@ const filterTabs: { id: StatusFilter; label: string }[] = [
   { id: 'completed', label: 'Done' },
   { id: 'pending_review', label: 'Review' },
   { id: 'skipped', label: 'Skipped' },
+  { id: 'no_go', label: 'No-go' },
 ]
 
 export function LocationsList() {
@@ -327,6 +328,9 @@ export function LocationsList() {
               <span className="h-2.5 w-2.5 rounded-full bg-[#d97706]" />{' '}
               Review
             </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#dc2626]" /> No-go
+            </span>
           </div>
 
           <Sheet
@@ -348,21 +352,23 @@ export function LocationsList() {
                       origin={center}
                       actions={
                         <>
-                          <Button
-                            asChild
-                            size="tap"
-                            variant="secondary"
-                            className="flex-1 gap-1.5"
-                          >
-                            <a
-                              href={`https://www.google.com/maps/dir/?api=1&destination=${selected.lat},${selected.lng}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                          {selected.lat != null && selected.lng != null && (
+                            <Button
+                              asChild
+                              size="tap"
+                              variant="secondary"
+                              className="flex-1 gap-1.5"
                             >
-                              <Navigation className="h-4 w-4" />
-                              Navigate
-                            </a>
-                          </Button>
+                              <a
+                                href={`https://www.google.com/maps/dir/?api=1&destination=${selected.lat},${selected.lng}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Navigation className="h-4 w-4" />
+                                Navigate
+                              </a>
+                            </Button>
+                          )}
                           {selected.status === 'available' && (
                             <Button
                               size="tap"
@@ -376,7 +382,8 @@ export function LocationsList() {
                             </Button>
                           )}
                           {selected.status !== 'completed' &&
-                            selected.status !== 'skipped' && (
+                            selected.status !== 'skipped' &&
+                            selected.status !== 'no_go' && (
                               <Button
                                 size="tap"
                                 variant="success"
@@ -391,7 +398,8 @@ export function LocationsList() {
                               </Button>
                             )}
                           {selected.status !== 'completed' &&
-                            selected.status !== 'skipped' && (
+                            selected.status !== 'skipped' &&
+                            selected.status !== 'no_go' && (
                               <Button
                                 size="tap"
                                 variant="ghost"
@@ -447,21 +455,23 @@ export function LocationsList() {
                   origin={center}
                   actions={
                     <>
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="secondary"
-                        className="gap-1.5"
-                      >
-                        <a
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                      {loc.lat != null && loc.lng != null && (
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="secondary"
+                          className="gap-1.5"
                         >
-                          <Navigation className="h-4 w-4" />
-                          Navigate
-                        </a>
-                      </Button>
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Navigation className="h-4 w-4" />
+                            Navigate
+                          </a>
+                        </Button>
+                      )}
                       {loc.status === 'available' && (
                         <Button
                           size="sm"
@@ -473,7 +483,8 @@ export function LocationsList() {
                         </Button>
                       )}
                       {loc.status !== 'completed' &&
-                        loc.status !== 'skipped' && (
+                        loc.status !== 'skipped' &&
+                        loc.status !== 'no_go' && (
                           <>
                             <Button
                               size="sm"

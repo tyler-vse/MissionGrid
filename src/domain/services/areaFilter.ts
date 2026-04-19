@@ -35,6 +35,7 @@ export function pointInPolygon(lng: number, lat: number, ring: number[][]): bool
 export function locationInPolygon(loc: Location, polygon: GeoPolygon): boolean {
   const ring = polygon.coordinates[0]
   if (!ring?.length) return true
+  if (loc.lat == null || loc.lng == null) return false
   return pointInPolygon(loc.lng, loc.lat, ring)
 }
 
@@ -43,6 +44,7 @@ export function withinRadius(
   center: Coord,
   radiusMeters: number,
 ): boolean {
+  if (loc.lat == null || loc.lng == null) return false
   return haversineMeters(center, { lat: loc.lat, lng: loc.lng }) <= radiusMeters
 }
 

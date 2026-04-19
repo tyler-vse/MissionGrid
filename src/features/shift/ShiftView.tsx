@@ -40,7 +40,11 @@ import {
   useShiftStore,
 } from '@/store/shiftStore'
 
-function buildNavigationUrl(lat: number, lng: number): string {
+function buildNavigationUrl(
+  lat: number | undefined,
+  lng: number | undefined,
+): string | null {
+  if (lat == null || lng == null) return null
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
 }
 
@@ -360,22 +364,28 @@ export function ShiftView() {
                       </div>
                     ) : (
                       <>
-                        <Button
-                          asChild
-                          size="tap"
-                          variant="secondary"
-                          className="flex-1 gap-1.5"
-                        >
-                          <a
-                            href={buildNavigationUrl(loc.lat, loc.lng)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            aria-label={`Navigate to ${loc.name}`}
-                          >
-                            <Navigation className="h-4 w-4" />
-                            Navigate
-                          </a>
-                        </Button>
+                        {(() => {
+                          const url = buildNavigationUrl(loc.lat, loc.lng)
+                          if (!url) return null
+                          return (
+                            <Button
+                              asChild
+                              size="tap"
+                              variant="secondary"
+                              className="flex-1 gap-1.5"
+                            >
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Navigate to ${loc.name}`}
+                              >
+                                <Navigation className="h-4 w-4" />
+                                Navigate
+                              </a>
+                            </Button>
+                          )
+                        })()}
                         {loc.status === 'available' && (
                           <Button
                             size="tap"

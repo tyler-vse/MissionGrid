@@ -5,7 +5,14 @@ export interface StatProps {
   label: string
   value: string | number
   icon?: LucideIcon
-  tone?: 'default' | 'primary' | 'success' | 'warning' | 'info' | 'muted'
+  tone?:
+    | 'default'
+    | 'primary'
+    | 'success'
+    | 'warning'
+    | 'info'
+    | 'muted'
+    | 'destructive'
   className?: string
 }
 
@@ -16,6 +23,7 @@ const toneStyles: Record<NonNullable<StatProps['tone']>, string> = {
   warning: 'bg-warning/10 text-warning',
   info: 'bg-info/10 text-info',
   muted: 'bg-muted text-muted-foreground',
+  destructive: 'bg-destructive/10 text-destructive',
 }
 
 export function Stat({

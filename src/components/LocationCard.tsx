@@ -1,8 +1,8 @@
-import { MapPin, Navigation2 } from 'lucide-react'
+import { Ban, MapPin, Navigation2 } from 'lucide-react'
 import type * as React from 'react'
 import { OpenStatusBadge } from '@/components/OpenStatusBadge'
 import { StatusBadge } from '@/components/StatusBadge'
-import type { Location } from '@/domain/models/location'
+import { hasCoords, type Location } from '@/domain/models/location'
 import {
   distanceFrom,
   formatDistanceMeters,
@@ -33,7 +33,11 @@ export function LocationCard({
   selected,
   className,
 }: LocationCardProps) {
-  const distance = distanceFrom(origin, { lat: location.lat, lng: location.lng })
+  const coords = hasCoords(location)
+    ? { lat: location.lat, lng: location.lng }
+    : null
+  const distance = coords ? distanceFrom(origin, coords) : null
+  const isNoGo = location.status === 'no_go'
 
   const body = (
     <div className="flex items-start gap-3">
@@ -47,9 +51,18 @@ export function LocationCard({
       ) : (
         <div
           aria-hidden
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          className={cn(
+            'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+            isNoGo
+              ? 'bg-destructive text-destructive-foreground'
+              : 'bg-muted text-muted-foreground',
+          )}
         >
-          <MapPin className="h-4 w-4" />
+          {isNoGo ? (
+            <Ban className="h-4 w-4" />
+          ) : (
+            <MapPin className="h-4 w-4" />
+          )}
         </div>
       )}
 
@@ -65,11 +78,30 @@ export function LocationCard({
           {location.address}
         </p>
 
+        {isNoGo && (
+          <div
+            role="note"
+            className="mt-2 flex items-start gap-1.5 rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-xs font-medium text-destructive"
+          >
+            <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>
+              Do not flyer this business.
+              {location.noGoReason ? ` ${location.noGoReason}` : ''}
+            </span>
+          </div>
+        )}
+
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
           {distance !== null && (
             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
               <Navigation2 className="h-3 w-3" aria-hidden />
               {formatDistanceMeters(distance)}
+            </span>
+          )}
+          {!coords && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 font-medium text-muted-foreground">
+              <MapPin className="h-3 w-3" aria-hidden />
+              Address only
             </span>
           )}
           <OpenStatusBadge hours={location.openHours} />
@@ -85,6 +117,7 @@ export function LocationCard({
 
   const cardClasses = cn(
     'rounded-2xl border bg-card p-4 shadow-sm transition-colors',
+    isNoGo && 'border-destructive/40 bg-destructive/5',
     selected && 'border-primary ring-2 ring-primary/30',
     onSelect && 'cursor-pointer hover:border-primary/50',
     className,

@@ -68,6 +68,12 @@ export const mockBackend: BackendProvider = {
   async listLocations(orgId) {
     return useMockBackendStore
       .getState()
+      .locations.filter((l) => l.organizationId === orgId && !l.archivedAt)
+  },
+
+  async listAllLocations(orgId) {
+    return useMockBackendStore
+      .getState()
       .locations.filter((l) => l.organizationId === orgId)
   },
 
@@ -176,7 +182,9 @@ export const mockBackend: BackendProvider = {
       callback(
         useMockBackendStore
           .getState()
-          .locations.filter((l) => l.organizationId === orgId),
+          .locations.filter(
+            (l) => l.organizationId === orgId && !l.archivedAt,
+          ),
       )
     }
     run()
@@ -248,11 +256,20 @@ export const mockBackend: BackendProvider = {
     store.updateSuggestedPlace(placeId, { status: 'approved' })
     const suggestion = store.suggestedPlaces.find((p) => p.id === placeId)
     if (!suggestion) throw new Error('Suggested place not found')
+    const matchesCoords = (l: Location): boolean => {
+      if (suggestion.lat == null || suggestion.lng == null) {
+        return l.lat == null && l.lng == null
+      }
+      if (l.lat == null || l.lng == null) return false
+      return (
+        Math.abs(l.lat - suggestion.lat) < 1e-5 &&
+        Math.abs(l.lng - suggestion.lng) < 1e-5
+      )
+    }
     const loc = store.locations.find(
       (l) =>
         l.status === 'pending_review' &&
-        Math.abs(l.lat - suggestion.lat) < 1e-5 &&
-        Math.abs(l.lng - suggestion.lng) < 1e-5 &&
+        matchesCoords(l) &&
         l.name === suggestion.name,
     )
     if (!loc) throw new Error('Linked location missing')
@@ -269,13 +286,22 @@ export const mockBackend: BackendProvider = {
     store.updateSuggestedPlace(placeId, { status: 'rejected' })
     const suggestion = store.suggestedPlaces.find((p) => p.id === placeId)
     if (!suggestion) return
+    const matchesCoords = (l: Location): boolean => {
+      if (suggestion.lat == null || suggestion.lng == null) {
+        return l.lat == null && l.lng == null
+      }
+      if (l.lat == null || l.lng == null) return false
+      return (
+        Math.abs(l.lat - suggestion.lat) < 1e-5 &&
+        Math.abs(l.lng - suggestion.lng) < 1e-5
+      )
+    }
     useMockBackendStore.setState((s) => ({
       locations: s.locations.filter(
         (l) =>
           !(
             l.status === 'pending_review' &&
-            Math.abs(l.lat - suggestion.lat) < 1e-5 &&
-            Math.abs(l.lng - suggestion.lng) < 1e-5 &&
+            matchesCoords(l) &&
             l.name === suggestion.name
           ),
       ),
@@ -299,12 +325,64 @@ export const mockBackend: BackendProvider = {
   },
 
   async createCampaign(input) {
-    return useMockBackendStore.getState().createCampaign(input)
+    return useMockBackendStore.getState().createCampaign({
+      organizationId: input.organizationId,
+      name: input.name,
+      description: input.description,
+      grantReference: input.grantReference,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      status: input.status,
+      serviceAreaIds: input.serviceAreaIds ?? [],
+    })
   },
 
   async updateCampaign(id, patch) {
-    const updated = useMockBackendStore.getState().updateCampaign(id, patch)
+    const { serviceAreaIds, ...rest } = patch
+    const updated = useMockBackendStore.getState().updateCampaign(id, rest)
     if (!updated) throw new Error('Campaign not found')
+    if (serviceAreaIds !== undefined) {
+      const afterZones = useMockBackendStore
+        .getState()
+        .setCampaignZones(id, serviceAreaIds)
+      if (afterZones) return afterZones
+    }
+    return updated
+  },
+
+  async setCampaignZones(campaignId, serviceAreaIds) {
+    const updated = useMockBackendStore
+      .getState()
+      .setCampaignZones(campaignId, serviceAreaIds)
+    if (!updated) throw new Error('Campaign not found')
+    return updated
+  },
+
+  async archiveLocation(locationId) {
+    const updated = useMockBackendStore.getState().archiveLocation(locationId)
+    if (!updated) throw new Error('Location not found')
+    return updated
+  },
+
+  async restoreLocation(locationId) {
+    const updated = useMockBackendStore.getState().restoreLocation(locationId)
+    if (!updated) throw new Error('Location not found')
+    return updated
+  },
+
+  async setLocationNoGo(input) {
+    const updated = useMockBackendStore
+      .getState()
+      .setLocationNoGo(input.locationId, input.reason)
+    if (!updated) throw new Error('Location not found')
+    return updated
+  },
+
+  async clearLocationNoGo(locationId) {
+    const updated = useMockBackendStore
+      .getState()
+      .clearLocationNoGo(locationId)
+    if (!updated) throw new Error('Location not found')
     return updated
   },
 

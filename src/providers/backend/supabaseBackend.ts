@@ -24,8 +24,8 @@ type LocationRow = {
   city: string | null
   state: string | null
   postal_code: string | null
-  lat: number
-  lng: number
+  lat: number | null
+  lng: number | null
   category: string | null
   status: ActivityStatus
   claimed_by_volunteer_id: string | null
@@ -33,6 +33,8 @@ type LocationRow = {
   completed_at: string | null
   notes: string | null
   source: LocationSource | null
+  archived_at?: string | null
+  no_go_reason?: string | null
 }
 
 function mapLocation(row: LocationRow): Location {
@@ -44,8 +46,8 @@ function mapLocation(row: LocationRow): Location {
     city: row.city ?? undefined,
     state: row.state ?? undefined,
     postalCode: row.postal_code ?? undefined,
-    lat: row.lat,
-    lng: row.lng,
+    lat: row.lat ?? undefined,
+    lng: row.lng ?? undefined,
     category: row.category ?? undefined,
     status: row.status,
     claimedByVolunteerId: row.claimed_by_volunteer_id ?? undefined,
@@ -54,6 +56,8 @@ function mapLocation(row: LocationRow): Location {
     notes: row.notes ?? undefined,
     source: row.source ?? 'preloaded',
     serviceAreaId: row.service_area_id ?? undefined,
+    archivedAt: row.archived_at ?? undefined,
+    noGoReason: row.no_go_reason ?? undefined,
   }
 }
 
@@ -134,6 +138,8 @@ type CampaignRow = {
   status: CampaignStatus
   created_at: string
   updated_at: string
+  /** Populated when using the `campaign_service_areas(...)` embed. */
+  campaign_service_areas?: { service_area_id: string }[] | null
 }
 
 function mapCampaign(row: CampaignRow): Campaign {
@@ -146,6 +152,9 @@ function mapCampaign(row: CampaignRow): Campaign {
     startsAt: row.starts_at ?? undefined,
     endsAt: row.ends_at ?? undefined,
     status: row.status,
+    serviceAreaIds: (row.campaign_service_areas ?? []).map(
+      (x) => x.service_area_id,
+    ),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -327,6 +336,18 @@ export function createSupabaseBackend(
         .from('locations')
         .select('*')
         .eq('organization_id', orgId)
+        .is('archived_at', null)
+        .order('name', { ascending: true })
+      if (error) throw error
+      return (data as LocationRow[]).map(mapLocation)
+    },
+
+    async listAllLocations(orgId) {
+      const supabase = client()
+      const { data, error } = await supabase
+        .from('locations')
+        .select('*')
+        .eq('organization_id', orgId)
         .order('name', { ascending: true })
       if (error) throw error
       return (data as LocationRow[]).map(mapLocation)
@@ -380,8 +401,8 @@ export function createSupabaseBackend(
           city: r.city ?? null,
           state: r.state ?? null,
           postal_code: r.postalCode ?? null,
-          lat: r.lat,
-          lng: r.lng,
+          lat: r.lat ?? null,
+          lng: r.lng ?? null,
           category: r.category ?? null,
           notes: r.notes ?? null,
           status: 'available' as const,
@@ -444,6 +465,7 @@ export function createSupabaseBackend(
           .from('locations')
           .select('*')
           .eq('organization_id', orgId)
+          .is('archived_at', null)
           .then(({ data }) => {
             if (data) callback((data as LocationRow[]).map(mapLocation))
           })
@@ -471,7 +493,7 @@ export function createSupabaseBackend(
       const supabase = client()
       const { data, error } = await supabase
         .from('campaigns')
-        .select('*')
+        .select('*, campaign_service_areas(service_area_id)')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
       if (error) throw error
@@ -482,7 +504,7 @@ export function createSupabaseBackend(
       const supabase = client()
       const { data, error } = await supabase
         .from('campaigns')
-        .select('*')
+        .select('*, campaign_service_areas(service_area_id)')
         .eq('id', id)
         .maybeSingle()
       if (error) throw error
@@ -506,7 +528,19 @@ export function createSupabaseBackend(
         .select('*')
         .single()
       if (error) throw error
-      return mapCampaign(data as CampaignRow)
+      const created = data as CampaignRow
+      if (input.serviceAreaIds && input.serviceAreaIds.length > 0) {
+        const { error: linkErr } = await supabase
+          .from('campaign_service_areas')
+          .insert(
+            input.serviceAreaIds.map((serviceAreaId) => ({
+              campaign_id: created.id,
+              service_area_id: serviceAreaId,
+            })),
+          )
+        if (linkErr) throw linkErr
+      }
+      return backend.getCampaign!(created.id) as Promise<Campaign>
     },
 
     async updateCampaign(id, patch) {
@@ -522,14 +556,79 @@ export function createSupabaseBackend(
       if (patch.startsAt !== undefined) update.starts_at = patch.startsAt ?? null
       if (patch.endsAt !== undefined) update.ends_at = patch.endsAt ?? null
       if (patch.status !== undefined) update.status = patch.status
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('campaigns')
         .update(update)
         .eq('id', id)
-        .select('*')
-        .single()
       if (error) throw error
-      return mapCampaign(data as CampaignRow)
+      if (patch.serviceAreaIds !== undefined) {
+        await backend.setCampaignZones!(id, patch.serviceAreaIds)
+      }
+      return backend.getCampaign!(id) as Promise<Campaign>
+    },
+
+    async setCampaignZones(campaignId, serviceAreaIds) {
+      const supabase = client()
+      const { error: delErr } = await supabase
+        .from('campaign_service_areas')
+        .delete()
+        .eq('campaign_id', campaignId)
+      if (delErr) throw delErr
+      if (serviceAreaIds.length > 0) {
+        const { error: insErr } = await supabase
+          .from('campaign_service_areas')
+          .insert(
+            serviceAreaIds.map((serviceAreaId) => ({
+              campaign_id: campaignId,
+              service_area_id: serviceAreaId,
+            })),
+          )
+        if (insErr) throw insErr
+      }
+      const campaign = await backend.getCampaign!(campaignId)
+      if (!campaign) throw new Error('Campaign not found after zone update')
+      return campaign
+    },
+
+    async archiveLocation(locationId) {
+      const supabase = client()
+      const { data, error } = await supabase.rpc('admin_archive_location', {
+        p_location_id: locationId,
+      })
+      if (error) throw error
+      if (!data) throw new Error('admin_archive_location returned no row')
+      return mapLocation(data as LocationRow)
+    },
+
+    async restoreLocation(locationId) {
+      const supabase = client()
+      const { data, error } = await supabase.rpc('admin_restore_location', {
+        p_location_id: locationId,
+      })
+      if (error) throw error
+      if (!data) throw new Error('admin_restore_location returned no row')
+      return mapLocation(data as LocationRow)
+    },
+
+    async setLocationNoGo(input) {
+      const supabase = client()
+      const { data, error } = await supabase.rpc('admin_set_location_no_go', {
+        p_location_id: input.locationId,
+        p_reason: input.reason ?? null,
+      })
+      if (error) throw error
+      if (!data) throw new Error('admin_set_location_no_go returned no row')
+      return mapLocation(data as LocationRow)
+    },
+
+    async clearLocationNoGo(locationId) {
+      const supabase = client()
+      const { data, error } = await supabase.rpc('admin_clear_location_no_go', {
+        p_location_id: locationId,
+      })
+      if (error) throw error
+      if (!data) throw new Error('admin_clear_location_no_go returned no row')
+      return mapLocation(data as LocationRow)
     },
 
     async startShift(input) {

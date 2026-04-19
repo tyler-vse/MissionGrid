@@ -84,11 +84,23 @@ export interface MockBackendState {
     patch: Partial<SuggestedPlace>,
   ) => SuggestedPlace | null
   createCampaign: (
-    input: Omit<Campaign, 'id' | 'createdAt' | 'updatedAt' | 'status'> & {
+    input: Omit<
+      Campaign,
+      'id' | 'createdAt' | 'updatedAt' | 'status' | 'serviceAreaIds'
+    > & {
       status?: Campaign['status']
+      serviceAreaIds?: string[]
     },
   ) => Campaign
   updateCampaign: (id: string, patch: Partial<Campaign>) => Campaign | null
+  setCampaignZones: (
+    campaignId: string,
+    serviceAreaIds: string[],
+  ) => Campaign | null
+  archiveLocation: (locationId: string) => Location | null
+  restoreLocation: (locationId: string) => Location | null
+  setLocationNoGo: (locationId: string, reason?: string) => Location | null
+  clearLocationNoGo: (locationId: string) => Location | null
   startShift: (
     input: Omit<
       Shift,
@@ -410,6 +422,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       startsAt: input.startsAt,
       endsAt: input.endsAt,
       status: input.status ?? 'active',
+      serviceAreaIds: input.serviceAreaIds ?? [],
       createdAt: ts,
       updatedAt: ts,
     }
@@ -427,6 +440,110 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
         return updated
       }),
     }))
+    return updated
+  },
+
+  setCampaignZones: (campaignId, serviceAreaIds) => {
+    const ts = new Date().toISOString()
+    let updated: Campaign | null = null
+    set((s) => ({
+      campaigns: s.campaigns.map((c) => {
+        if (c.id !== campaignId) return c
+        updated = { ...c, serviceAreaIds: [...serviceAreaIds], updatedAt: ts }
+        return updated
+      }),
+    }))
+    return updated
+  },
+
+  archiveLocation: (locationId) => {
+    const ts = new Date().toISOString()
+    let updated: Location | null = null
+    set((s) => ({
+      locations: s.locations.map((l) => {
+        if (l.id !== locationId) return l
+        updated = { ...l, archivedAt: ts }
+        return updated
+      }),
+    }))
+    return updated
+  },
+
+  restoreLocation: (locationId) => {
+    let updated: Location | null = null
+    set((s) => ({
+      locations: s.locations.map((l) => {
+        if (l.id !== locationId) return l
+        const { archivedAt: _omit, ...rest } = l
+        void _omit
+        updated = rest
+        return updated
+      }),
+    }))
+    return updated
+  },
+
+  setLocationNoGo: (locationId, reason) => {
+    const ts = new Date().toISOString()
+    let updated: Location | null = null
+    set((s) => {
+      const prev = s.locations.find((l) => l.id === locationId) ?? null
+      const locations = s.locations.map((l) => {
+        if (l.id !== locationId) return l
+        const trimmed = reason?.trim()
+        updated = {
+          ...l,
+          status: 'no_go' as const,
+          noGoReason: trimmed ? trimmed : undefined,
+        }
+        return updated
+      })
+      const events = prev && updated
+        ? [
+            ...s.locationEvents,
+            {
+              id: newId('evt'),
+              locationId,
+              volunteerId: undefined,
+              fromStatus: prev.status,
+              toStatus: 'no_go' as const,
+              note: reason?.trim() || undefined,
+              createdAt: ts,
+            },
+          ]
+        : s.locationEvents
+      return { locations, locationEvents: events }
+    })
+    return updated
+  },
+
+  clearLocationNoGo: (locationId) => {
+    const ts = new Date().toISOString()
+    let updated: Location | null = null
+    set((s) => {
+      const prev = s.locations.find((l) => l.id === locationId) ?? null
+      const locations = s.locations.map((l) => {
+        if (l.id !== locationId) return l
+        const { noGoReason: _omit, ...rest } = l
+        void _omit
+        updated = { ...rest, status: 'available' as const }
+        return updated
+      })
+      const events = prev && updated && prev.status !== updated.status
+        ? [
+            ...s.locationEvents,
+            {
+              id: newId('evt'),
+              locationId,
+              volunteerId: undefined,
+              fromStatus: prev.status,
+              toStatus: 'available' as const,
+              createdAt: ts,
+            },
+          ]
+        : s.locationEvents
+      return { locations, locationEvents: events }
+    })
     return updated
   },
 

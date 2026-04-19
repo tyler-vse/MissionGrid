@@ -11,6 +11,7 @@ const markerColors: Record<ActivityStatus, string> = {
   completed: '#16a34a',
   skipped: '#94a3b8',
   pending_review: '#d97706',
+  no_go: '#dc2626',
 }
 
 function createCircleContent(color: string, selected: boolean): HTMLElement {
@@ -82,6 +83,7 @@ function GoogleMapView({
     for (const m of markersRef.current) m.map = null
     markersRef.current = []
     for (const loc of locations) {
+      if (loc.lat == null || loc.lng == null) continue
       const marker = new google.maps.marker.AdvancedMarkerElement({
         map,
         position: { lat: loc.lat, lng: loc.lng },
@@ -103,7 +105,9 @@ function GoogleMapView({
     const map = mapRef.current
     if (!map || !selectedId) return
     const loc = locations.find((l) => l.id === selectedId)
-    if (loc) map.panTo({ lat: loc.lat, lng: loc.lng })
+    if (loc && loc.lat != null && loc.lng != null) {
+      map.panTo({ lat: loc.lat, lng: loc.lng })
+    }
   }, [selectedId, locations])
 
   // Area overlays

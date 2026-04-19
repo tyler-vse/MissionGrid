@@ -1,11 +1,13 @@
 import Papa from 'papaparse'
 import { z } from 'zod'
 
+// Canonical row shape for CSV imports. Coordinates are optional because many
+// lists we receive are address-only and can be imported without a geocode.
 const rowSchema = z.object({
   name: z.string().min(1),
   address: z.string().min(1),
-  lat: z.coerce.number().finite(),
-  lng: z.coerce.number().finite(),
+  lat: z.coerce.number().finite().optional(),
+  lng: z.coerce.number().finite().optional(),
   category: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
@@ -15,29 +17,9 @@ const rowSchema = z.object({
 
 export type CsvLocationRow = z.infer<typeof rowSchema>
 
-const relaxedRowSchema = z
-  .object({
-    name: z.string().min(1),
-    address: z.string().min(1),
-    lat: z.coerce.number().finite().optional(),
-    lng: z.coerce.number().finite().optional(),
-    category: z.string().optional(),
-    city: z.string().optional(),
-    state: z.string().optional(),
-    postalCode: z.string().optional(),
-    notes: z.string().optional(),
-  })
-  .superRefine((val, ctx) => {
-    const hasLat = val.lat !== undefined && val.lat !== null && !Number.isNaN(val.lat)
-    const hasLng = val.lng !== undefined && val.lng !== null && !Number.isNaN(val.lng)
-    if (hasLat !== hasLng) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Latitude and longitude must both be present or both omitted.',
-        path: ['lat'],
-      })
-    }
-  })
+// Preview uses the same schema — no "both-or-neither" requirement. Callers can
+// still warn on a single missing side if they want to flag it to the user.
+const relaxedRowSchema = rowSchema
 
 export type CsvPreviewData = z.infer<typeof relaxedRowSchema>
 
@@ -176,10 +158,20 @@ export function parseLocationCsvPreview(text: string): {
     }
 
     const data = result.data
-    if (data.lat === undefined || data.lng === undefined) {
+    const hasLat =
+      data.lat !== undefined && data.lat !== null && !Number.isNaN(data.lat)
+    const hasLng =
+      data.lng !== undefined && data.lng !== null && !Number.isNaN(data.lng)
+    if (hasLat !== hasLng) {
       issues.push({
         severity: 'warning',
-        message: 'Missing coordinates — use “Geocode missing” before import.',
+        message: 'Only one of latitude/longitude set — will import without coordinates.',
+      })
+    } else if (!hasLat && !hasLng) {
+      issues.push({
+        severity: 'warning',
+        message:
+          'No coordinates — will import as address-only (won’t appear on the map).',
       })
     }
 
@@ -208,7 +200,8 @@ export function parseLocationCsvPreview(text: string): {
   return { rows, errors: [] }
 }
 
-/** Rows ready for backend import (coordinates required). */
+/** Rows ready for backend import. Coordinates are optional — rows without a
+ * valid lat/lng pair are imported as address-only stops. */
 export function previewRowsToImportable(
   rows: CsvPreviewRow[],
   options?: { includeDuplicates?: boolean },
@@ -216,13 +209,21 @@ export function previewRowsToImportable(
   const out: CsvLocationRow[] = []
   for (const r of rows) {
     if (!r.data) continue
-    if (r.data.lat === undefined || r.data.lng === undefined) continue
     if (r.issues.some((x) => x.severity === 'error')) continue
     if (r.isDuplicate && !options?.includeDuplicates) continue
+    const hasLat =
+      r.data.lat !== undefined &&
+      r.data.lat !== null &&
+      !Number.isNaN(r.data.lat)
+    const hasLng =
+      r.data.lng !== undefined &&
+      r.data.lng !== null &&
+      !Number.isNaN(r.data.lng)
+    const both = hasLat && hasLng
     out.push({
       ...r.data,
-      lat: r.data.lat,
-      lng: r.data.lng,
+      lat: both ? r.data.lat : undefined,
+      lng: both ? r.data.lng : undefined,
     })
   }
   return out

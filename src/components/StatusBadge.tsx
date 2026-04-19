@@ -8,6 +8,7 @@ const labels: Record<ActivityStatus, string> = {
   completed: 'Done',
   skipped: 'Skipped',
   pending_review: 'Review',
+  no_go: 'Do not flyer',
 }
 
 const variantFor: Record<ActivityStatus, NonNullable<BadgeProps['variant']>> = {
@@ -16,6 +17,7 @@ const variantFor: Record<ActivityStatus, NonNullable<BadgeProps['variant']>> = {
   completed: 'success',
   skipped: 'muted',
   pending_review: 'warning',
+  no_go: 'destructive',
 }
 
 export function StatusBadge({

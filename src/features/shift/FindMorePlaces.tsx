@@ -40,6 +40,10 @@ function isDuplicate(
   const key = normalize(result.name)
   for (const loc of existing) {
     if (normalize(loc.name).includes(key) || key.includes(normalize(loc.name))) {
+      if (loc.lat == null || loc.lng == null) {
+        // Name match is enough to dedupe address-only stops.
+        return true
+      }
       const dist = haversineMeters(
         { lat: loc.lat, lng: loc.lng },
         result.location,

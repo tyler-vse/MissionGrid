@@ -6,6 +6,7 @@ import {
   Megaphone,
   RotateCcw,
 } from 'lucide-react'
+import { useMemo } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import { SectionHeader } from '@/components/ui/section-header'
 import { Stat } from '@/components/ui/stat'
 import { useCampaign } from '@/data/useCampaign'
 import { useCampaignReport } from '@/data/useCampaignReport'
+import { useServiceAreas } from '@/data/useServiceAreas'
 import { useUpdateCampaign } from '@/data/useUpdateCampaign'
 import {
   downloadCsv,
@@ -42,6 +44,27 @@ export function AdminCampaignDetail() {
   const { data: campaign, isLoading: loadingCampaign } = useCampaign(id)
   const { data: report, isLoading: loadingReport } = useCampaignReport(id)
   const updateCampaign = useUpdateCampaign()
+  const serviceAreas = useServiceAreas()
+  const zoneIdSet = useMemo(
+    () => new Set(campaign?.serviceAreaIds ?? []),
+    [campaign?.serviceAreaIds],
+  )
+
+  const toggleZone = async (zoneId: string) => {
+    if (!campaign) return
+    const next = new Set(campaign.serviceAreaIds)
+    if (next.has(zoneId)) next.delete(zoneId)
+    else next.add(zoneId)
+    try {
+      await updateCampaign.mutateAsync({
+        id: campaign.id,
+        patch: { serviceAreaIds: Array.from(next) },
+      })
+      toast.success('Zones updated')
+    } catch (e) {
+      toast.error(formatUnknownError(e))
+    }
+  }
 
   if (!id) {
     return <Navigate to="/admin/campaigns" replace />
@@ -154,6 +177,45 @@ export function AdminCampaignDetail() {
           {campaign.description}
         </p>
       )}
+
+      <section
+        aria-labelledby="zones-heading"
+        className="rounded-2xl border bg-card p-5 shadow-sm"
+      >
+        <div className="mb-3">
+          <h2 id="zones-heading" className="text-base font-bold tracking-tight">
+            Zones covered
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            This campaign reports on work in every selected zone.
+          </p>
+        </div>
+        {serviceAreas.length === 0 ? (
+          <InlineAlert tone="info">
+            No zones are defined yet. Add one in setup before scoping campaigns.
+          </InlineAlert>
+        ) : (
+          <ul className="space-y-1.5">
+            {serviceAreas.map((area) => {
+              const checked = zoneIdSet.has(area.id)
+              return (
+                <li key={area.id}>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted/40">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={checked}
+                      disabled={updateCampaign.isPending}
+                      onChange={() => void toggleZone(area.id)}
+                    />
+                    <span className="truncate font-medium">{area.name}</span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
 
       <section
         aria-labelledby="totals-heading"

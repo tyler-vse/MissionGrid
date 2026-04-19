@@ -63,15 +63,17 @@ create table if not exists public.locations (
   city text,
   state text,
   postal_code text,
-  lat double precision not null,
-  lng double precision not null,
+  lat double precision,
+  lng double precision,
   category text,
   notes text,
   status text not null default 'available'
-    check (status in ('available', 'claimed', 'completed', 'skipped', 'pending_review')),
+    check (status in ('available', 'claimed', 'completed', 'skipped', 'pending_review', 'no_go')),
   claimed_by_volunteer_id uuid references public.volunteers (id),
   claimed_at timestamptz,
   completed_at timestamptz,
+  archived_at timestamptz,
+  no_go_reason text,
   source text not null default 'preloaded'
     check (source in ('preloaded', 'suggested', 'manual')),
   created_at timestamptz not null default now(),
@@ -80,6 +82,9 @@ create table if not exists public.locations (
 
 create index if not exists locations_org_idx on public.locations (organization_id);
 create index if not exists locations_status_idx on public.locations (organization_id, status);
+create index if not exists locations_active_idx
+  on public.locations (organization_id, status)
+  where archived_at is null;
 
 alter table public.locations replica identity full;
 
@@ -125,6 +130,18 @@ create table if not exists public.campaigns (
 
 create index if not exists campaigns_org_idx on public.campaigns (organization_id);
 create index if not exists campaigns_status_idx on public.campaigns (organization_id, status);
+
+create table if not exists public.campaign_service_areas (
+  campaign_id uuid not null references public.campaigns (id) on delete cascade,
+  service_area_id uuid not null references public.service_areas (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (campaign_id, service_area_id)
+);
+
+create index if not exists campaign_service_areas_campaign_idx
+  on public.campaign_service_areas (campaign_id);
+create index if not exists campaign_service_areas_area_idx
+  on public.campaign_service_areas (service_area_id);
 
 create table if not exists public.shifts (
   id uuid primary key default gen_random_uuid(),
@@ -613,6 +630,117 @@ grant execute on function public.record_location_action(uuid, text, uuid, uuid, 
   to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
+-- Admin location RPCs — archive/restore + set/clear no-go
+-- ---------------------------------------------------------------------------
+
+create or replace function public.admin_archive_location(
+  p_location_id uuid
+) returns public.locations
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_loc public.locations;
+begin
+  update public.locations
+     set archived_at = now(),
+         updated_at = now()
+   where id = p_location_id
+  returning * into v_loc;
+
+  if v_loc.id is null then
+    raise exception 'location_not_found' using errcode = 'P0001';
+  end if;
+
+  return v_loc;
+end;
+$$;
+
+grant execute on function public.admin_archive_location(uuid) to authenticated;
+
+create or replace function public.admin_restore_location(
+  p_location_id uuid
+) returns public.locations
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_loc public.locations;
+begin
+  update public.locations
+     set archived_at = null,
+         updated_at = now()
+   where id = p_location_id
+  returning * into v_loc;
+
+  if v_loc.id is null then
+    raise exception 'location_not_found' using errcode = 'P0001';
+  end if;
+
+  return v_loc;
+end;
+$$;
+
+grant execute on function public.admin_restore_location(uuid) to authenticated;
+
+create or replace function public.admin_set_location_no_go(
+  p_location_id uuid,
+  p_reason text default null
+) returns public.locations
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_loc public.locations;
+begin
+  update public.locations
+     set status = 'no_go',
+         no_go_reason = nullif(trim(coalesce(p_reason, '')), ''),
+         updated_at = now()
+   where id = p_location_id
+  returning * into v_loc;
+
+  if v_loc.id is null then
+    raise exception 'location_not_found' using errcode = 'P0001';
+  end if;
+
+  return v_loc;
+end;
+$$;
+
+grant execute on function public.admin_set_location_no_go(uuid, text) to authenticated;
+
+create or replace function public.admin_clear_location_no_go(
+  p_location_id uuid
+) returns public.locations
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_loc public.locations;
+begin
+  update public.locations
+     set status = 'available',
+         no_go_reason = null,
+         updated_at = now()
+   where id = p_location_id
+  returning * into v_loc;
+
+  if v_loc.id is null then
+    raise exception 'location_not_found' using errcode = 'P0001';
+  end if;
+
+  return v_loc;
+end;
+$$;
+
+grant execute on function public.admin_clear_location_no_go(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Row level security (permissive — one org per project; tighten for multi-tenant)
 -- ---------------------------------------------------------------------------
 
@@ -624,6 +752,7 @@ alter table public.locations enable row level security;
 alter table public.location_history enable row level security;
 alter table public.app_configuration enable row level security;
 alter table public.campaigns enable row level security;
+alter table public.campaign_service_areas enable row level security;
 alter table public.shifts enable row level security;
 alter table public.shift_members enable row level security;
 
@@ -643,6 +772,8 @@ drop policy if exists app_configuration_rw on public.app_configuration;
 create policy app_configuration_rw on public.app_configuration for all using (true) with check (true);
 drop policy if exists campaigns_rw on public.campaigns;
 create policy campaigns_rw on public.campaigns for all using (true) with check (true);
+drop policy if exists campaign_service_areas_rw on public.campaign_service_areas;
+create policy campaign_service_areas_rw on public.campaign_service_areas for all using (true) with check (true);
 drop policy if exists shifts_rw on public.shifts;
 create policy shifts_rw on public.shifts for all using (true) with check (true);
 drop policy if exists shift_members_rw on public.shift_members;

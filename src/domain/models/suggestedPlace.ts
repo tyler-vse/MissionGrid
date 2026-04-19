@@ -7,8 +7,8 @@ export interface SuggestedPlace {
   externalPlaceId?: string
   name: string
   address: string
-  lat: number
-  lng: number
+  lat?: number
+  lng?: number
   types?: string[]
   submittedByVolunteerId?: string
   status: 'pending_review' | 'approved' | 'rejected'

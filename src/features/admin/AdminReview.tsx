@@ -96,9 +96,10 @@ export function AdminReview() {
       {pending.length > 0 && (
         <ul className="space-y-3">
           {pending.map((p) => {
-            const distance = center
-              ? haversineMeters(center, { lat: p.lat, lng: p.lng })
-              : null
+            const distance =
+              center && p.lat != null && p.lng != null
+                ? haversineMeters(center, { lat: p.lat, lng: p.lng })
+                : null
             return (
               <li
                 key={p.id}

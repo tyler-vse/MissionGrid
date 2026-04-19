@@ -131,7 +131,8 @@ export function AdminImport() {
             ...row,
             data: { ...row.data, lat: res.lat, lng: res.lng },
             issues: row.issues.filter(
-              (i) => !i.message.includes('Missing coordinates'),
+              (i) =>
+                !/coordinates|address-only/i.test(i.message),
             ),
           }
         } else {
@@ -235,8 +236,9 @@ export function AdminImport() {
       {step === 'upload' && (
         <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm">
           <p className="text-sm text-muted-foreground">
-            Headers: name, address, lat, lng (optional city, state, postal_code,
-            category, notes). Missing coordinates are OK — we can geocode.
+            Headers: name, address (optional lat, lng, city, state, postal_code,
+            category, notes). Coordinates are optional — missing rows still
+            import and can be geocoded later or stay address-only.
           </p>
           <div>
             <Label htmlFor="csv-file" className="flex items-center gap-2">

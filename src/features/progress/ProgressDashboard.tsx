@@ -1,4 +1,11 @@
-import { CheckCircle2, Clock, MapPin, SkipForward, Sparkles } from 'lucide-react'
+import {
+  Ban,
+  CheckCircle2,
+  Clock,
+  MapPin,
+  SkipForward,
+  Sparkles,
+} from 'lucide-react'
 import { Thermometer } from '@/components/Thermometer'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Stat } from '@/components/ui/stat'
@@ -8,12 +15,16 @@ import type { ActivityStatus } from '@/domain/models/activityStatus'
 import { useProgress } from '@/data/useProgress'
 import { useServiceAreas } from '@/data/useServiceAreas'
 
-const statusCopy: Record<ActivityStatus, { label: string; tone: 'primary' | 'info' | 'success' | 'warning' | 'muted' }> = {
+const statusCopy: Record<
+  ActivityStatus,
+  { label: string; tone: 'primary' | 'info' | 'success' | 'warning' | 'muted' | 'destructive' }
+> = {
   available: { label: 'Open', tone: 'primary' },
   claimed: { label: 'Claimed', tone: 'info' },
   completed: { label: 'Done', tone: 'success' },
   pending_review: { label: 'Review', tone: 'warning' },
   skipped: { label: 'Skipped', tone: 'muted' },
+  no_go: { label: 'No-go', tone: 'destructive' },
 }
 
 export function ProgressDashboard() {
@@ -62,7 +73,9 @@ export function ProgressDashboard() {
                         ? Clock
                         : row.status === 'claimed'
                           ? Sparkles
-                          : MapPin
+                          : row.status === 'no_go'
+                            ? Ban
+                            : MapPin
                 return (
                   <Stat
                     key={row.status}

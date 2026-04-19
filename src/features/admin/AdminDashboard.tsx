@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Building2,
   FileUp,
   LayoutDashboard,
   Link2,
@@ -20,6 +21,7 @@ import { AdminCampaigns } from '@/features/admin/AdminCampaigns'
 import { AdminLinks } from '@/features/admin/AdminLinks'
 import { AdminOverview } from '@/features/admin/AdminOverview'
 import { AdminImport } from '@/features/admin/AdminImport'
+import { AdminPlaces } from '@/features/admin/AdminPlaces'
 import { AdminReview } from '@/features/admin/AdminReview'
 import { AdminVolunteers } from '@/features/admin/AdminVolunteers'
 import { cn } from '@/lib/utils'
@@ -29,6 +31,7 @@ import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 const navItems = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutDashboard },
   { to: '/admin/campaigns', end: false, label: 'Campaigns', icon: Megaphone },
+  { to: '/admin/places', end: false, label: 'Places', icon: Building2 },
   { to: '/admin/imports', end: false, label: 'Imports', icon: FileUp },
   { to: '/admin/review', end: false, label: 'Review', icon: ShieldCheck },
   {
@@ -129,6 +132,7 @@ export function AdminDashboard() {
           <Route index element={<AdminOverview />} />
           <Route path="campaigns" element={<AdminCampaigns />} />
           <Route path="campaigns/:id" element={<AdminCampaignDetail />} />
+          <Route path="places" element={<AdminPlaces />} />
           <Route path="imports" element={<AdminImport />} />
           <Route path="review" element={<AdminReview />} />
           <Route path="volunteers" element={<AdminVolunteers />} />

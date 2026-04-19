@@ -291,16 +291,12 @@ export function SetupWizard() {
         (r.data.lat === undefined || r.data.lng === undefined) &&
         !r.issues.some((i) => i.severity === 'error'),
     )
-    if (needsGeo.length > 0) {
+    const gkey = values.googleMapsApiKey?.trim()
+    if (needsGeo.length > 0 && gkey) {
       toast.message('Geocoding rows without coordinates…')
       const { createGoogleGeocoder } = await import(
         '@/providers/geocoding/googleGeocoder'
       )
-      const gkey = values.googleMapsApiKey?.trim()
-      if (!gkey) {
-        toast.error('Add a Google Maps API key on step 4 to geocode, or lat/lng in CSV.')
-        return
-      }
       const geo = createGoogleGeocoder(gkey)
       const items = preview
         .map((r, index) => ({ r, index }))
@@ -322,13 +318,14 @@ export function SetupWizard() {
       for (const res of results) {
         if (res.ok) idxToCoord.set(res.index, { lat: res.lat, lng: res.lng })
       }
+      // Merge geocoded coords back into importRows (preserve address-only rows
+      // when geocoding fails — they'll just import without coordinates).
       importRows = preview
         .map((r, i) => {
           if (!r.data) return null
           const c = idxToCoord.get(i)
           const lat = r.data.lat ?? c?.lat
           const lng = r.data.lng ?? c?.lng
-          if (lat === undefined || lng === undefined) return null
           if (r.issues.some((x) => x.severity === 'error')) return null
           if (r.isDuplicate) return null
           return {
@@ -341,7 +338,7 @@ export function SetupWizard() {
     }
 
     if (importRows.length === 0) {
-      toast.error('No importable rows (check CSV and coordinates).')
+      toast.error('No importable rows (check CSV for errors).')
       return
     }
 
@@ -1166,7 +1163,8 @@ http://localhost:5173/*`}
               <div className="space-y-1">
                 <Label htmlFor="csvText">Paste your locations CSV</Label>
                 <p className="text-xs text-muted-foreground">
-                  Required columns: <span className="font-mono">name</span>, <span className="font-mono">address</span>, and either <span className="font-mono">lat</span>/<span className="font-mono">lng</span> or an address we can geocode. Optional:
+                  Required columns: <span className="font-mono">name</span>, <span className="font-mono">address</span>. Optional:
+                  <span className="font-mono"> lat</span>, <span className="font-mono">lng</span> (address-only rows still import — they just won&apos;t appear on the map),
                   <span className="font-mono"> city</span>, <span className="font-mono">state</span>, <span className="font-mono">postal_code</span>, <span className="font-mono">category</span>, <span className="font-mono">notes</span>.
                 </p>
               </div>

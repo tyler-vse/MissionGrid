@@ -19,8 +19,11 @@ export interface Location {
   city?: string
   state?: string
   postalCode?: string
-  lat: number
-  lng: number
+  /** Optional — coordinates are best-effort; places imported from address-only
+   * sources may not have them. Use `hasCoords()` or `lat != null` guards before
+   * rendering on a map or running distance math. */
+  lat?: number
+  lng?: number
   category?: string
   status: ActivityStatus
   claimedByVolunteerId?: string
@@ -31,4 +34,15 @@ export interface Location {
   /** Service area this stop belongs to (optional) */
   serviceAreaId?: string
   openHours?: OpenHoursHint
+  /** Soft-delete timestamp (admin only). Volunteer-facing hooks filter these out. */
+  archivedAt?: string
+  /** Reason a business asked not to be flyered (paired with status === 'no_go'). */
+  noGoReason?: string
+}
+
+/** Type guard for locations that have coordinates (useful for maps + distance math). */
+export function hasCoords(
+  loc: Pick<Location, 'lat' | 'lng'>,
+): loc is Pick<Location, 'lat' | 'lng'> & { lat: number; lng: number } {
+  return loc.lat != null && loc.lng != null
 }

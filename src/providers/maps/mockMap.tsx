@@ -12,6 +12,7 @@ const statusColor: Record<ActivityStatus, string> = {
   completed: 'bg-success border-success text-success-foreground',
   skipped: 'bg-muted border-border text-muted-foreground',
   pending_review: 'bg-warning border-warning text-warning-foreground',
+  no_go: 'bg-destructive border-destructive text-destructive-foreground',
 }
 
 function Pin({
@@ -76,8 +77,12 @@ function AreaOverlay({
 
 function MockMapInner(props: MapRenderProps) {
   const { locations, center, selectedId, onSelectLocation, area, heightClassName } = props
-  const xs = locations.map((l) => l.lng)
-  const ys = locations.map((l) => l.lat)
+  const mappable = locations.filter(
+    (l): l is typeof l & { lat: number; lng: number } =>
+      l.lat != null && l.lng != null,
+  )
+  const xs = mappable.map((l) => l.lng)
+  const ys = mappable.map((l) => l.lat)
   const minX = Math.min(...xs, center.lng) - 0.01
   const maxX = Math.max(...xs, center.lng) + 0.01
   const minY = Math.min(...ys, center.lat) - 0.01
@@ -106,7 +111,7 @@ function MockMapInner(props: MapRenderProps) {
         }}
         title="Center"
       />
-      {locations.map((loc) => {
+      {mappable.map((loc) => {
         const p = toPct(loc.lng, loc.lat)
         return (
           <div

@@ -10,6 +10,9 @@ export interface Campaign {
   startsAt?: string
   endsAt?: string
   status: CampaignStatus
+  /** Zones (service_areas) this campaign covers. Populated by the backend via the
+   * `campaign_service_areas` junction; may be empty if no zones are linked yet. */
+  serviceAreaIds: string[]
   createdAt: string
   updatedAt: string
 }

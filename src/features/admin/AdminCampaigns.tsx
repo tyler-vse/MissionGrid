@@ -22,6 +22,7 @@ import { SectionHeader } from '@/components/ui/section-header'
 import { Textarea } from '@/components/ui/textarea'
 import { useCampaigns } from '@/data/useCampaigns'
 import { useCreateCampaign } from '@/data/useCreateCampaign'
+import { useServiceAreas } from '@/data/useServiceAreas'
 import { formatUnknownError } from '@/lib/errors'
 
 const schema = z
@@ -31,6 +32,7 @@ const schema = z
     grantReference: z.string().optional(),
     startsAt: z.string().optional(),
     endsAt: z.string().optional(),
+    serviceAreaIds: z.array(z.string().min(1)).optional(),
   })
   .refine(
     (v) =>
@@ -50,6 +52,7 @@ function formatDate(iso?: string): string {
 export function AdminCampaigns() {
   const { data: campaigns = [], isLoading } = useCampaigns()
   const createCampaign = useCreateCampaign()
+  const serviceAreas = useServiceAreas()
   const [open, setOpen] = useState(false)
 
   const form = useForm<Form>({
@@ -60,8 +63,19 @@ export function AdminCampaigns() {
       grantReference: '',
       startsAt: '',
       endsAt: '',
+      serviceAreaIds: [],
     },
   })
+
+  const selectedZoneIds = form.watch('serviceAreaIds') ?? []
+  const toggleZone = (id: string) => {
+    const current = new Set(form.getValues('serviceAreaIds') ?? [])
+    if (current.has(id)) current.delete(id)
+    else current.add(id)
+    form.setValue('serviceAreaIds', Array.from(current), {
+      shouldDirty: true,
+    })
+  }
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
@@ -75,6 +89,7 @@ export function AdminCampaigns() {
         endsAt: values.endsAt
           ? new Date(values.endsAt).toISOString()
           : undefined,
+        serviceAreaIds: values.serviceAreaIds ?? [],
       })
       toast.success('Campaign created')
       form.reset()
@@ -161,6 +176,40 @@ export function AdminCampaigns() {
                     {...form.register('description')}
                   />
                 </div>
+                <div>
+                  <Label>Zones covered</Label>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Pick every zone this campaign should cover. Volunteers will
+                    see stops from all selected zones.
+                  </p>
+                  {serviceAreas.length === 0 ? (
+                    <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                      No zones defined yet. Add one in setup before scoping a
+                      campaign.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {serviceAreas.map((area) => {
+                        const checked = selectedZoneIds.includes(area.id)
+                        return (
+                          <li key={area.id}>
+                            <label className="flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm hover:bg-muted/40">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4"
+                                checked={checked}
+                                onChange={() => toggleZone(area.id)}
+                              />
+                              <span className="truncate font-medium">
+                                {area.name}
+                              </span>
+                            </label>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
               </div>
               <DialogFooter>
                 <Button
@@ -211,6 +260,9 @@ export function AdminCampaigns() {
                     <p className="truncate text-xs text-muted-foreground">
                       {formatDate(c.startsAt)} → {formatDate(c.endsAt)}
                       {c.grantReference ? ` · ${c.grantReference}` : ''}
+                      {c.serviceAreaIds.length > 0
+                        ? ` · ${c.serviceAreaIds.length} zone${c.serviceAreaIds.length === 1 ? '' : 's'}`
+                        : ''}
                     </p>
                   </div>
                   <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold capitalize text-muted-foreground">

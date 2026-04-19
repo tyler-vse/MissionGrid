@@ -67,6 +67,8 @@ function eventLabel(to: ActivityStatus): string {
       return 'skipped'
     case 'pending_review':
       return 'flagged for review'
+    case 'no_go':
+      return 'flagged as no-go'
   }
 }
 
