@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { isSupabaseConfigured, mergeRuntimeWithEnv } from '@/config/runtimeConfig'
 import { useVolunteers } from '@/data/useVolunteers'
 import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
@@ -12,14 +13,16 @@ export function useActiveVolunteer() {
   )
   const runtimeVolunteerId = useRuntimeConfigStore((s) => s.volunteerId)
   const patchRuntime = useRuntimeConfigStore((s) => s.patch)
-  const runtimeSlice = useRuntimeConfigStore((s) => ({
-    supabaseUrl: s.supabaseUrl,
-    supabaseAnonKey: s.supabaseAnonKey,
-    googleMapsApiKey: s.googleMapsApiKey,
-    organizationId: s.organizationId,
-    volunteerId: s.volunteerId,
-    inviteToken: s.inviteToken,
-  }))
+  const runtimeSlice = useRuntimeConfigStore(
+    useShallow((s) => ({
+      supabaseUrl: s.supabaseUrl,
+      supabaseAnonKey: s.supabaseAnonKey,
+      googleMapsApiKey: s.googleMapsApiKey,
+      organizationId: s.organizationId,
+      volunteerId: s.volunteerId,
+      inviteToken: s.inviteToken,
+    })),
+  )
   const merged = mergeRuntimeWithEnv(runtimeSlice)
   const isSupabase = isSupabaseConfigured(merged)
 
