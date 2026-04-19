@@ -4,6 +4,7 @@ import type { LocationEvent } from '@/domain/models/locationEvent'
 import type { Location } from '@/domain/models/location'
 import type { Organization } from '@/domain/models/organization'
 import type { ServiceArea } from '@/domain/models/serviceArea'
+import type { SuggestedPlace } from '@/domain/models/suggestedPlace'
 import type { Volunteer } from '@/domain/models/volunteer'
 import { createSeedLocations } from '@/mock/locations'
 import { MOCK_ORGANIZATION } from '@/mock/organization'
@@ -18,6 +19,7 @@ export interface MockBackendState {
   volunteers: Volunteer[]
   locations: Location[]
   locationEvents: LocationEvent[]
+  suggestedPlaces: SuggestedPlace[]
   /** Current volunteer persona for one-tap actions */
   activeVolunteerId: string | null
   /** Load demo org + stops (Phase 1 dev shortcut) */
@@ -49,6 +51,15 @@ export interface MockBackendState {
     volunteerId: string,
     reason?: string,
   ) => void
+  addSuggestedPlace: (
+    input: Omit<SuggestedPlace, 'id' | 'status' | 'createdAt'> & {
+      status?: SuggestedPlace['status']
+    },
+  ) => SuggestedPlace
+  updateSuggestedPlace: (
+    id: string,
+    patch: Partial<SuggestedPlace>,
+  ) => SuggestedPlace | null
   resetToEmpty: () => void
 }
 
@@ -71,6 +82,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
   volunteers: [],
   locations: [],
   locationEvents: [],
+  suggestedPlaces: [],
   activeVolunteerId: null,
 
   loadDemo: () => {
@@ -86,6 +98,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       volunteers: MOCK_VOLUNTEERS.map((v) => ({ ...v })),
       locations: createSeedLocations(),
       locationEvents: [],
+      suggestedPlaces: [],
       activeVolunteerId: MOCK_VOLUNTEER_ALEX,
     })
   },
@@ -139,6 +152,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       volunteers,
       locations,
       locationEvents: [],
+      suggestedPlaces: [],
       activeVolunteerId: volunteers[0]!.id,
       appConfiguration: {
         organizationId: orgId,
@@ -295,6 +309,38 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
     })
   },
 
+  addSuggestedPlace: (input) => {
+    const ts = new Date().toISOString()
+    const org = get().organization
+    const record: SuggestedPlace = {
+      id: newId('sug'),
+      organizationId: input.organizationId || org?.id || MOCK_ORG_ID,
+      externalPlaceId: input.externalPlaceId,
+      name: input.name,
+      address: input.address,
+      lat: input.lat,
+      lng: input.lng,
+      types: input.types,
+      submittedByVolunteerId: input.submittedByVolunteerId,
+      status: input.status ?? 'pending_review',
+      createdAt: ts,
+    }
+    set((s) => ({ suggestedPlaces: [...s.suggestedPlaces, record] }))
+    return record
+  },
+
+  updateSuggestedPlace: (id, patch) => {
+    let updated: SuggestedPlace | null = null
+    set((s) => ({
+      suggestedPlaces: s.suggestedPlaces.map((p) => {
+        if (p.id !== id) return p
+        updated = { ...p, ...patch }
+        return updated
+      }),
+    }))
+    return updated
+  },
+
   resetToEmpty: () =>
     set({
       organization: null,
@@ -303,6 +349,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       volunteers: [],
       locations: [],
       locationEvents: [],
+      suggestedPlaces: [],
       activeVolunteerId: null,
     }),
 }))

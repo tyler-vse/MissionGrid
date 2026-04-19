@@ -17,8 +17,8 @@ export default defineConfig({
         name: APP_CONFIG.name,
         short_name: APP_CONFIG.name,
         description: APP_CONFIG.description,
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
         icons: [

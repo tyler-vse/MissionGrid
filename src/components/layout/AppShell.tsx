@@ -1,4 +1,5 @@
 import { Navigate, Outlet } from 'react-router-dom'
+import { ConnectionBanner } from '@/components/layout/ConnectionBanner'
 import { Header } from '@/components/layout/Header'
 import { MobileTabBar } from '@/components/layout/MobileTabBar'
 import { useIsAppConfigured } from '@/data/useIsAppConfigured'
@@ -10,9 +11,10 @@ export function AppShell() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-dvh flex-col bg-background">
+      <ConnectionBanner />
       <Header />
-      <main className="mx-auto w-full max-w-lg flex-1 px-4 pb-24 pt-4">
+      <main className="mx-auto w-full max-w-lg flex-1 px-4 pb-28 pt-4">
         <Outlet />
       </main>
       <MobileTabBar />

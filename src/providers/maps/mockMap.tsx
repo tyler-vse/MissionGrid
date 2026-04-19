@@ -1,12 +1,27 @@
-import type { MapProvider, MapRenderProps } from '@/providers/maps/MapProvider'
+import type {
+  MapAreaOverlay,
+  MapProvider,
+  MapRenderProps,
+} from '@/providers/maps/MapProvider'
+import type { ActivityStatus } from '@/domain/models/activityStatus'
 import { cn } from '@/lib/utils'
+
+const statusColor: Record<ActivityStatus, string> = {
+  available: 'bg-primary border-primary text-primary-foreground',
+  claimed: 'bg-info border-info text-info-foreground',
+  completed: 'bg-success border-success text-success-foreground',
+  skipped: 'bg-muted border-border text-muted-foreground',
+  pending_review: 'bg-warning border-warning text-warning-foreground',
+}
 
 function Pin({
   label,
+  status,
   selected,
   onClick,
 }: {
   label: string
+  status: ActivityStatus
   selected?: boolean
   onClick?: () => void
 }) {
@@ -15,10 +30,9 @@ function Pin({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex h-8 w-8 items-center justify-center rounded-full border-2 text-[10px] font-bold shadow-sm transition-colors',
-        selected
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-border bg-card text-foreground hover:bg-muted',
+        'flex h-8 w-8 items-center justify-center rounded-full border-2 text-[10px] font-bold shadow-md transition-transform',
+        statusColor[status],
+        selected && 'scale-125 ring-2 ring-ring ring-offset-2 ring-offset-background',
       )}
       title={label}
     >
@@ -27,8 +41,41 @@ function Pin({
   )
 }
 
+function AreaOverlay({
+  area,
+  bounds,
+}: {
+  area: MapAreaOverlay
+  bounds: { minX: number; maxX: number; minY: number; maxY: number }
+}) {
+  const { minX, maxX, minY, maxY } = bounds
+  if (!area.radiusMeters) return null
+  // Approximate: 1 degree lat ≈ 111km; draw as a rough ellipse.
+  const kmPerDegLng =
+    111 * Math.cos(((area.center.lat * Math.PI) / 180) || 0)
+  const radiusDegLat = area.radiusMeters / 1000 / 111
+  const radiusDegLng = area.radiusMeters / 1000 / Math.max(20, kmPerDegLng)
+  const widthPct = (radiusDegLng * 2) / (maxX - minX) * 100
+  const heightPct = (radiusDegLat * 2) / (maxY - minY) * 100
+  const leftPct = ((area.center.lng - minX) / (maxX - minX)) * 100
+  const bottomPct = ((area.center.lat - minY) / (maxY - minY)) * 100
+
+  return (
+    <div
+      aria-hidden
+      className="absolute rounded-full border-2 border-primary/60 bg-primary/5"
+      style={{
+        width: `${widthPct}%`,
+        height: `${heightPct}%`,
+        left: `calc(${leftPct}% - ${widthPct / 2}%)`,
+        bottom: `calc(${bottomPct}% - ${heightPct / 2}%)`,
+      }}
+    />
+  )
+}
+
 function MockMapInner(props: MapRenderProps) {
-  const { locations, center, selectedId, onSelectLocation } = props
+  const { locations, center, selectedId, onSelectLocation, area, heightClassName } = props
   const xs = locations.map((l) => l.lng)
   const ys = locations.map((l) => l.lat)
   const minX = Math.min(...xs, center.lng) - 0.01
@@ -42,10 +89,17 @@ function MockMapInner(props: MapRenderProps) {
   })
 
   return (
-    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border bg-muted/40">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-transparent to-accent/15" />
+    <div
+      className={cn(
+        'relative w-full overflow-hidden rounded-xl border bg-gradient-to-br from-muted/60 via-muted/20 to-primary/5',
+        heightClassName ?? 'aspect-[4/3]',
+      )}
+    >
+      {area && (
+        <AreaOverlay area={area} bounds={{ minX, maxX, minY, maxY }} />
+      )}
       <div
-        className="absolute h-3 w-3 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-accent bg-accent shadow"
+        className="absolute h-3 w-3 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-foreground bg-background shadow"
         style={{
           left: `${((center.lng - minX) / (maxX - minX)) * 100}%`,
           bottom: `${((center.lat - minY) / (maxY - minY)) * 100}%`,
@@ -62,14 +116,15 @@ function MockMapInner(props: MapRenderProps) {
           >
             <Pin
               label={loc.name}
+              status={loc.status}
               selected={loc.id === selectedId}
               onClick={() => onSelectLocation?.(loc.id)}
             />
           </div>
         )
       })}
-      <p className="absolute bottom-2 left-2 right-2 rounded-md bg-background/80 px-2 py-1 text-center text-xs text-muted-foreground backdrop-blur">
-        Schematic map (Google Maps provider in Phase 2)
+      <p className="pointer-events-none absolute bottom-2 left-2 right-2 rounded-md bg-background/80 px-2 py-1 text-center text-[11px] font-medium text-muted-foreground backdrop-blur">
+        Schematic map · connect Google Maps for live tiles
       </p>
     </div>
   )

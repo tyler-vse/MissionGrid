@@ -5,4 +5,6 @@ export const queryKeys = {
   volunteers: (orgId: string) => ['volunteers', orgId] as const,
   locations: (orgId: string) => ['locations', orgId] as const,
   progress: (orgId: string) => ['progress', orgId] as const,
+  recentEvents: (orgId: string) => ['recentEvents', orgId] as const,
+  suggestedPlaces: (orgId: string) => ['suggestedPlaces', orgId] as const,
 }

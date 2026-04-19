@@ -17,10 +17,10 @@ export const APP_CONFIG = {
   docsUrl: '/docs',
   theme: {
     /** Full CSS color values (injected as CSS variables at runtime) */
-    primary: 'hsl(221 83% 53%)',
-    accent: 'hsl(142 71% 45%)',
-    background: 'hsl(222 47% 11%)',
-    foreground: 'hsl(210 40% 98%)',
+    primary: 'hsl(221 83% 45%)',
+    accent: 'hsl(142 71% 33%)',
+    background: 'hsl(0 0% 100%)',
+    foreground: 'hsl(222 47% 11%)',
   },
   defaultTimeWindows: [10, 20, 30, 60] as const,
   defaultStatuses: [

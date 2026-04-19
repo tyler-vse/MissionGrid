@@ -346,6 +346,44 @@ export function createSupabaseBackend(
       return computeProgress(locs)
     },
 
+    // TODO(phase-3): add `listSuggestedPlaces` / `createSuggestedPlace` /
+    // `approveSuggestedPlace` / `rejectSuggestedPlace` + corresponding
+    // `suggested_places` table in docs/supabase/schema.sql. See
+    // BackendProvider for the interface contract.
+
+    async listRecentEvents(orgId, limit = 20) {
+      const supabase = client()
+      const { data, error } = await supabase
+        .from('location_history')
+        .select(
+          'id, location_id, volunteer_id, from_status, to_status, note, created_at, locations(name), volunteers(display_name)',
+        )
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      if (error) throw error
+      return (data ?? []).map((row) => {
+        const loc = (row as unknown as { locations?: { name?: string } | null })
+          .locations
+        const vol = (row as unknown as {
+          volunteers?: { display_name?: string } | null
+        }).volunteers
+        return {
+          id: row.id as string,
+          locationId: row.location_id as string,
+          volunteerId: (row.volunteer_id as string | null) ?? undefined,
+          fromStatus:
+            ((row.from_status as string | null) ?? null) as never,
+          toStatus: row.to_status as never,
+          note: (row.note as string | null) ?? undefined,
+          createdAt: row.created_at as string,
+          locationName: loc?.name ?? undefined,
+          volunteerName: vol?.display_name ?? undefined,
+          // filter after-the-fact; the join keeps the query simple
+          __orgId: orgId,
+        }
+      })
+    },
+
     subscribeLocations(orgId, callback) {
       const supabase = client()
       const load = () => {
