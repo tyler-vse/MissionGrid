@@ -187,6 +187,72 @@ $$;
 grant execute on function public.join_volunteer(text, uuid, text, text, text) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
+-- Admin session helper (used by the client-side RequireAdmin guard)
+-- Returns the organization id for the currently authenticated admin,
+-- or NULL if the caller is not an admin (or not authenticated).
+-- ---------------------------------------------------------------------------
+
+create or replace function public.current_admin_org()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select organization_id
+    from public.volunteers
+   where auth_user_id = auth.uid()
+     and is_admin = true
+   limit 1;
+$$;
+
+grant execute on function public.current_admin_org() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Magic-link return flow: link an authenticated Supabase user to the
+-- volunteer row that was created during /join. Returns the volunteer id.
+-- Matches on existing auth_user_id first, then falls back to email within
+-- the organization so the first post-join magic-link click backfills the
+-- linkage.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.link_volunteer_to_auth(
+  p_organization_id uuid
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_email text;
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated' using errcode = 'P0001';
+  end if;
+
+  select email into v_email from auth.users where id = auth.uid();
+  if v_email is null then
+    raise exception 'no_email_on_auth_user' using errcode = 'P0001';
+  end if;
+
+  update public.volunteers
+     set auth_user_id = auth.uid()
+   where organization_id = p_organization_id
+     and (auth_user_id = auth.uid()
+          or lower(email) = lower(v_email))
+  returning id into v_id;
+
+  if v_id is null then
+    raise exception 'no_volunteer_for_email' using errcode = 'P0001';
+  end if;
+  return v_id;
+end;
+$$;
+
+grant execute on function public.link_volunteer_to_auth(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Row level security (permissive — one org per project; tighten for multi-tenant)
 -- ---------------------------------------------------------------------------
 

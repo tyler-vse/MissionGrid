@@ -1,4 +1,8 @@
-import { Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { LogOut } from 'lucide-react'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { ProviderStatusBanner } from '@/components/layout/ProviderStatusBanner'
 import { AppName } from '@/components/branding/AppName'
 import { Logo } from '@/components/branding/Logo'
@@ -13,10 +17,38 @@ import {
 import { APP_CONFIG } from '@/config/app.config'
 import { useActiveVolunteer } from '@/data/useVolunteer'
 import { cn } from '@/lib/utils'
+import { requireSupabaseClient } from '@/providers/backend/supabaseClient'
+import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 
 export function Header({ className }: { className?: string }) {
   const { volunteers, activeVolunteerId, setActiveVolunteerId } =
     useActiveVolunteer()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const supabaseUrl = useRuntimeConfigStore((s) => s.supabaseUrl)
+  const supabaseAnonKey = useRuntimeConfigStore((s) => s.supabaseAnonKey)
+  const patch = useRuntimeConfigStore((s) => s.patch)
+  const signOutable = Boolean(supabaseUrl && supabaseAnonKey)
+  const [signingOut, setSigningOut] = useState(false)
+
+  const handleSignOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    try {
+      try {
+        const supabase = requireSupabaseClient(supabaseUrl, supabaseAnonKey)
+        await supabase.auth.signOut()
+      } catch {
+        /* ignore — we still want to clear the local session */
+      }
+      patch({ volunteerId: '' })
+      queryClient.clear()
+      toast.success('Signed out')
+    } finally {
+      setSigningOut(false)
+      navigate(APP_CONFIG.loginRoute, { replace: true })
+    }
+  }
 
   return (
     <header
@@ -59,6 +91,20 @@ export function Header({ className }: { className?: string }) {
           <Button variant="outline" size="sm" asChild>
             <Link to="/admin">Admin</Link>
           </Button>
+          {signOutable && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleSignOut()}
+              disabled={signingOut}
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="ml-1 hidden sm:inline">
+                {signingOut ? 'Signing out…' : 'Sign out'}
+              </span>
+            </Button>
+          )}
         </div>
       </div>
     </header>

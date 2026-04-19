@@ -2,17 +2,24 @@ import {
   ArrowLeft,
   FileUp,
   LayoutDashboard,
+  LogOut,
   ShieldCheck,
   Users,
 } from 'lucide-react'
-import { Link, NavLink, Route, Routes } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { AppName } from '@/components/branding/AppName'
 import { Button } from '@/components/ui/button'
+import { APP_CONFIG } from '@/config/app.config'
 import { AdminOverview } from '@/features/admin/AdminOverview'
 import { AdminImport } from '@/features/admin/AdminImport'
 import { AdminReview } from '@/features/admin/AdminReview'
 import { AdminVolunteers } from '@/features/admin/AdminVolunteers'
 import { cn } from '@/lib/utils'
+import { requireSupabaseClient } from '@/providers/backend/supabaseClient'
+import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 
 const navItems = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutDashboard },
@@ -27,6 +34,30 @@ const navItems = [
 ] as const
 
 export function AdminDashboard() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const supabaseUrl = useRuntimeConfigStore((s) => s.supabaseUrl)
+  const supabaseAnonKey = useRuntimeConfigStore((s) => s.supabaseAnonKey)
+  const [signingOut, setSigningOut] = useState(false)
+
+  const handleSignOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    try {
+      if (supabaseUrl && supabaseAnonKey) {
+        const supabase = requireSupabaseClient(supabaseUrl, supabaseAnonKey)
+        await supabase.auth.signOut()
+      }
+      queryClient.clear()
+      toast.success('Signed out')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSigningOut(false)
+      navigate(APP_CONFIG.adminLoginRoute, { replace: true })
+    }
+  }
+
   return (
     <div className="mx-auto flex min-h-dvh max-w-3xl flex-col">
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
@@ -44,9 +75,23 @@ export function AdminDashboard() {
               <AppName />
             </h1>
           </div>
-          <Button variant="outline" size="sm" asChild className="ml-auto">
-            <Link to="/volunteer">Volunteer view</Link>
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/volunteer">Volunteer view</Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleSignOut()}
+              disabled={signingOut}
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="ml-1 hidden sm:inline">
+                {signingOut ? 'Signing out…' : 'Sign out'}
+              </span>
+            </Button>
+          </div>
         </div>
         <nav
           aria-label="Admin sections"

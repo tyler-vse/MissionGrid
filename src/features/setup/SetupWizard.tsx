@@ -20,10 +20,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { APP_CONFIG } from '@/config/app.config'
 import {
+  encodeAdminHash,
   encodeInviteHash,
   testGoogleMapsKey,
   testSupabaseConnection,
 } from '@/config/runtimeConfig'
+import { CenterPointPicker } from '@/features/setup/CenterPointPicker'
 import { completeSupabaseOrgSetup } from '@/features/setup/completeSupabaseSetup'
 import schemaSql from '../../../docs/supabase/schema.sql?raw'
 import { WIZARD_STEP_LABELS } from '@/features/setup/steps/constants'
@@ -64,6 +66,19 @@ function deriveSupabaseSqlEditorUrl(projectUrl: string): string {
     const ref = match?.[1]
     if (!ref) return fallback
     return `https://supabase.com/dashboard/project/${ref}/sql/new`
+  } catch {
+    return fallback
+  }
+}
+
+function deriveSupabaseUrlConfigUrl(projectUrl: string): string {
+  const fallback = 'https://supabase.com/dashboard'
+  try {
+    const u = new URL(projectUrl)
+    const match = u.hostname.match(/^([a-z0-9-]+)\.supabase\.(co|in)$/i)
+    const ref = match?.[1]
+    if (!ref) return fallback
+    return `https://supabase.com/dashboard/project/${ref}/auth/url-configuration`
   } catch {
     return fallback
   }
@@ -132,6 +147,7 @@ export function SetupWizard() {
   >(null)
   const [googleOk, setGoogleOk] = useState<boolean | null>(null)
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+  const [adminUrl, setAdminUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const configured = useMockBackendStore((s) => s.appConfiguration?.isConfigured)
@@ -345,6 +361,14 @@ export function SetupWizard() {
       })
       const link = `${origin}${APP_CONFIG.inviteRoute}#${hash}`
       setInviteUrl(link)
+      const adminHash = encodeAdminHash({
+        v: 1,
+        supabaseUrl: url,
+        supabaseAnonKey: key,
+        organizationId: result.organizationId,
+        googleMapsApiKey: values.googleMapsApiKey?.trim() || undefined,
+      })
+      setAdminUrl(`${origin}${APP_CONFIG.adminConnectRoute}#${adminHash}`)
       runtimePatch({
         supabaseUrl: url,
         supabaseAnonKey: key,
@@ -611,6 +635,57 @@ export function SetupWizard() {
                   Pass the connection test to continue.
                 </p>
               )}
+
+              <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3 text-sm">
+                <p className="font-medium text-foreground">
+                  Allow sign-in links to return here
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  In Supabase &rarr; Authentication &rarr; URL Configuration, add this site to the <span className="font-medium text-foreground">Site URL</span> and <span className="font-medium text-foreground">Redirect URLs</span> allowlist so admin and volunteer magic links can land back on this app:
+                </p>
+                <pre className="whitespace-pre-wrap break-all rounded border bg-background p-2 font-mono text-xs text-foreground">
+{`${window.location.origin}
+${window.location.origin}${APP_CONFIG.authCallbackRoute}`}
+                </pre>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={async () => {
+                      const text = `${window.location.origin}\n${window.location.origin}${APP_CONFIG.authCallbackRoute}`
+                      try {
+                        await navigator.clipboard.writeText(text)
+                        toast.success('URLs copied')
+                      } catch {
+                        toast.error(
+                          'Clipboard blocked \u2014 select the URLs above and copy manually.',
+                        )
+                      }
+                    }}
+                  >
+                    Copy redirect URLs
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const projectUrl =
+                        form.getValues('supabaseUrl')?.trim() ?? ''
+                      const target = deriveSupabaseUrlConfigUrl(projectUrl)
+                      window.open(target, '_blank', 'noopener,noreferrer')
+                    }}
+                  >
+                    Open URL Configuration
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  You only need to do this once per Supabase project. Without
+                  it, magic-link emails can&apos;t send people back to
+                  MissionGrid.
+                </p>
+              </div>
             </div>
           )}
 
@@ -867,6 +942,9 @@ http://localhost:5173/*`}
 
           {step === 4 && (() => {
             const currentRadius = form.watch('radiusMeters')
+            const currentLat = form.watch('centerLat')
+            const currentLng = form.watch('centerLng')
+            const currentKey = form.watch('googleMapsApiKey') ?? ''
             return (
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
@@ -881,8 +959,22 @@ http://localhost:5173/*`}
                 </p>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Label>Center point</Label>
+
+                <CenterPointPicker
+                  apiKey={currentKey}
+                  apiKeyOk={googleOk === true}
+                  lat={currentLat}
+                  lng={currentLng}
+                  radiusMeters={currentRadius}
+                  onChange={({ lat, lng }) => {
+                    form.setValue('centerLat', lat, { shouldValidate: true })
+                    form.setValue('centerLng', lng, { shouldValidate: true })
+                  }}
+                  onJumpToKeyStep={() => setStep(3)}
+                />
+
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -917,51 +1009,42 @@ http://localhost:5173/*`}
                   >
                     Use my current location
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const lat = form.getValues('centerLat')
-                      const lng = form.getValues('centerLng')
-                      const url =
-                        Number.isFinite(lat) && Number.isFinite(lng)
-                          ? `https://www.google.com/maps/@${lat},${lng},14z`
-                          : 'https://www.google.com/maps'
-                      window.open(url, '_blank', 'noopener,noreferrer')
-                    }}
-                  >
-                    Find on Google Maps
-                  </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Tip: on Google Maps, right-click the spot you want as the center. The first item in the menu shows the latitude and longitude — click it to copy, then paste the two numbers into the boxes below.
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label htmlFor="centerLat">Center latitude</Label>
-                    <Input
-                      id="centerLat"
-                      type="number"
-                      step="any"
-                      placeholder="39.7392"
-                      {...form.register('centerLat', { valueAsNumber: true })}
-                    />
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    Exact coordinates
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label htmlFor="centerLat" className="sr-only">
+                        Center latitude
+                      </Label>
+                      <Input
+                        id="centerLat"
+                        type="number"
+                        step="any"
+                        placeholder="39.7392"
+                        {...form.register('centerLat', { valueAsNumber: true })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="centerLng" className="sr-only">
+                        Center longitude
+                      </Label>
+                      <Input
+                        id="centerLng"
+                        type="number"
+                        step="any"
+                        placeholder="-104.9903"
+                        {...form.register('centerLng', { valueAsNumber: true })}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="centerLng">Center longitude</Label>
-                    <Input
-                      id="centerLng"
-                      type="number"
-                      step="any"
-                      placeholder="-104.9903"
-                      {...form.register('centerLng', { valueAsNumber: true })}
-                    />
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Latitude is between -90 and 90; longitude is between -180 and 180. Edits here sync with the picker above.
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Latitude is between -90 and 90; longitude is between -180 and 180.
-                </p>
               </div>
 
               <div className="space-y-2">
@@ -1202,6 +1285,76 @@ http://localhost:5173/*`}
               <p className="text-xs text-muted-foreground">
                 You can always find this invite link again from Admin settings.
               </p>
+
+              {adminUrl && (
+                <div className="space-y-3 rounded-md border border-primary/30 bg-primary/5 p-3">
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">
+                      Your admin bookmark link
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Save this on every device you&apos;ll admin from. Opening
+                      it once lets you sign in with email + password from then
+                      on.
+                    </p>
+                  </div>
+                  <p className="break-all rounded border bg-background p-2 font-mono text-xs">
+                    {adminUrl}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(adminUrl)
+                          toast.success('Copied admin link')
+                        } catch {
+                          toast.error(
+                            'Clipboard blocked — select the link above and copy it manually.',
+                          )
+                        }
+                      }}
+                    >
+                      Copy admin link
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        window.open(adminUrl, '_blank', 'noopener,noreferrer')
+                      }
+                    >
+                      Open in new tab
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const orgName =
+                          form.getValues('organizationName')?.trim() ||
+                          'your team'
+                        const subject = encodeURIComponent(
+                          `Admin bookmark for ${orgName} on MissionGrid`,
+                        )
+                        const body = encodeURIComponent(
+                          `Open this link on any device you admin from, then sign in with your email and password:\n\n${adminUrl}\n\nKeep this link private — it lets anyone who has it reach the admin sign-in page for ${orgName}.`,
+                        )
+                        window.location.href = `mailto:?subject=${subject}&body=${body}`
+                      }}
+                    >
+                      Email myself
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Signing in requires the email and password you set in Step
+                    3 (Admin account). The link only pre-loads the Supabase
+                    connection — not your password.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

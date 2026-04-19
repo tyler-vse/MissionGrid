@@ -38,6 +38,88 @@ export function encodeInviteHash(payload: InvitePayloadV1): string {
   return `mg-invite-v1.${b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
 }
 
+export interface AdminBookmarkPayloadV1 {
+  v: 1
+  supabaseUrl: string
+  supabaseAnonKey: string
+  organizationId: string
+  googleMapsApiKey?: string
+}
+
+export interface OrgRefPayloadV1 {
+  v: 1
+  supabaseUrl: string
+  supabaseAnonKey: string
+  organizationId: string
+  googleMapsApiKey?: string
+}
+
+function encodePayload(prefix: string, body: string): string {
+  const b64 =
+    typeof btoa !== 'undefined'
+      ? btoa(utf8ToBinaryString(body))
+      : Buffer.from(body, 'utf-8').toString('base64')
+  return `${prefix}.${b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`
+}
+
+function decodePayload<T>(prefix: string, raw: string): T | null {
+  const trimmed = raw.replace(/^#/, '').replace(/^\?/, '').trim()
+  if (!trimmed.startsWith(`${prefix}.`)) return null
+  const body = trimmed.slice(prefix.length + 1)
+  try {
+    const padded = body.replace(/-/g, '+').replace(/_/g, '/')
+    const padLen = (4 - (padded.length % 4)) % 4
+    const b64 = padded + '='.repeat(padLen)
+    const json =
+      typeof atob !== 'undefined'
+        ? binaryStringToUtf8(atob(b64))
+        : Buffer.from(b64, 'base64').toString('utf-8')
+    return JSON.parse(json) as T
+  } catch {
+    return null
+  }
+}
+
+export function encodeAdminHash(payload: AdminBookmarkPayloadV1): string {
+  const body = JSON.stringify({ ...payload, v: 1 })
+  return encodePayload('mg-admin-v1', body)
+}
+
+export function decodeAdminHash(
+  hash: string,
+): AdminBookmarkPayloadV1 | null {
+  const parsed = decodePayload<AdminBookmarkPayloadV1>('mg-admin-v1', hash)
+  if (!parsed) return null
+  if (parsed.v !== 1) return null
+  if (
+    !parsed.supabaseUrl ||
+    !parsed.supabaseAnonKey ||
+    !parsed.organizationId
+  ) {
+    return null
+  }
+  return parsed
+}
+
+export function encodeOrgRef(payload: OrgRefPayloadV1): string {
+  const body = JSON.stringify({ ...payload, v: 1 })
+  return encodePayload('mg-orgref-v1', body)
+}
+
+export function decodeOrgRef(raw: string): OrgRefPayloadV1 | null {
+  const parsed = decodePayload<OrgRefPayloadV1>('mg-orgref-v1', raw)
+  if (!parsed) return null
+  if (parsed.v !== 1) return null
+  if (
+    !parsed.supabaseUrl ||
+    !parsed.supabaseAnonKey ||
+    !parsed.organizationId
+  ) {
+    return null
+  }
+  return parsed
+}
+
 export function decodeInviteHash(hash: string): InvitePayloadV1 | null {
   const trimmed = hash.replace(/^#/, '').trim()
   if (!trimmed.startsWith('mg-invite-v1.')) return null

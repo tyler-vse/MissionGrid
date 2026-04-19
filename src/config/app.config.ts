@@ -12,6 +12,10 @@ export const APP_CONFIG = {
     'A volunteer-friendly field coordination app for outreach, canvassing, and local action.',
   setupRoute: '/setup',
   inviteRoute: '/join',
+  adminLoginRoute: '/admin-login',
+  adminConnectRoute: '/admin-connect',
+  authCallbackRoute: '/auth/callback',
+  loginRoute: '/login',
   /** Optional — set for fork branding / support link in docs UI */
   supportUrl: 'https://github.com',
   docsUrl: '/docs',
