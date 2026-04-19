@@ -10,6 +10,7 @@ import { JoinPage } from '@/features/join/JoinPage'
 import { LandingPage } from '@/features/landing/LandingPage'
 import { LocationsList } from '@/features/locations/LocationsList'
 import { ProgressDashboard } from '@/features/progress/ProgressDashboard'
+import { RebuildLinksPage } from '@/features/recovery/RebuildLinksPage'
 import { SetupWizard } from '@/features/setup/SetupWizard'
 import { JoinShiftPage } from '@/features/shift/JoinShiftPage'
 import { ShiftView } from '@/features/shift/ShiftView'
@@ -28,6 +29,7 @@ export function AppRouter() {
         <Route path={APP_CONFIG.authCallbackRoute} element={<AuthCallbackPage />} />
         <Route path={APP_CONFIG.adminConnectRoute} element={<AdminConnectPage />} />
         <Route path={APP_CONFIG.adminLoginRoute} element={<AdminLoginPage />} />
+        <Route path={APP_CONFIG.rebuildLinksRoute} element={<RebuildLinksPage />} />
         <Route
           path="/admin/*"
           element={

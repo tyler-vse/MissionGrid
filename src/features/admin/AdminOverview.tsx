@@ -1,8 +1,9 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Check,
   CircleOff,
   FileUp,
+  Link2,
   MapPin,
   Plus,
   RotateCcw,
@@ -18,6 +19,10 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { InlineAlert } from '@/components/ui/inline-alert'
 import { SectionHeader } from '@/components/ui/section-header'
 import { Stat } from '@/components/ui/stat'
+import { APP_CONFIG } from '@/config/app.config'
+import {
+  encodeInviteHash,
+} from '@/config/runtimeConfig'
 import type { ActivityStatus } from '@/domain/models/activityStatus'
 import {
   DEFAULT_PLACE_CATEGORY,
@@ -25,6 +30,7 @@ import {
   PLACE_CATEGORY_PRESETS,
   type PlaceCategoryId,
 } from '@/domain/models/placeCategory'
+import { queryKeys } from '@/data/queryKeys'
 import { useOrganization } from '@/data/useOrganization'
 import { useProgress } from '@/data/useProgress'
 import { useRecentEvents } from '@/data/useRecentEvents'
@@ -32,6 +38,7 @@ import { useSuggestedPlaces } from '@/data/useSuggestedPlaces'
 import { useMockBackendStore } from '@/store/mockBackendStore'
 import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 import { cn } from '@/lib/utils'
+import { requireSupabaseClient } from '@/providers/backend/supabaseClient'
 
 function eventIcon(to: ActivityStatus) {
   switch (to) {
@@ -86,6 +93,52 @@ export function AdminOverview() {
     useRuntimeConfigStore((s) => s.placeCategoryDefault) ??
     DEFAULT_PLACE_CATEGORY
   const patchRuntime = useRuntimeConfigStore((s) => s.patch)
+  const supabaseUrl = useRuntimeConfigStore((s) => s.supabaseUrl)
+  const supabaseAnonKey = useRuntimeConfigStore((s) => s.supabaseAnonKey)
+  const organizationId = useRuntimeConfigStore((s) => s.organizationId)
+  const googleMapsApiKey = useRuntimeConfigStore((s) => s.googleMapsApiKey)
+
+  const canShowInviteCard = Boolean(
+    supabaseUrl && supabaseAnonKey && organizationId,
+  )
+
+  const latestInviteQuery = useQuery({
+    queryKey: queryKeys.orgInvites(organizationId),
+    enabled: canShowInviteCard,
+    queryFn: async (): Promise<string | null> => {
+      const supabase = requireSupabaseClient(supabaseUrl, supabaseAnonKey)
+      const { data, error } = await supabase
+        .from('org_invites')
+        .select('token')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (error) throw error
+      return (data?.[0]?.token as string | undefined) ?? null
+    },
+  })
+
+  const inviteUrl = (() => {
+    const token = latestInviteQuery.data
+    if (!canShowInviteCard || !token) return null
+    const origin =
+      typeof window !== 'undefined' ? window.location.origin : ''
+    const hash = encodeInviteHash({
+      v: 1,
+      supabaseUrl,
+      supabaseAnonKey,
+      organizationId,
+      inviteToken: token,
+      googleMapsApiKey: googleMapsApiKey?.trim() || undefined,
+    })
+    return `${origin}${APP_CONFIG.inviteRoute}#${hash}`
+  })()
+
+  const truncatedInvite = inviteUrl
+    ? inviteUrl.length > 60
+      ? `${inviteUrl.slice(0, 48)}…${inviteUrl.slice(-8)}`
+      : inviteUrl
+    : null
 
   const setPlaceCategoryDefault = (next: PlaceCategoryId) => {
     patchRuntime({ placeCategoryDefault: next })
@@ -112,6 +165,64 @@ export function AdminOverview() {
         title={org?.name ?? 'Organization'}
         description="Coverage, activity, and queue at a glance."
       />
+
+      {canShowInviteCard && (
+        <section
+          className="rounded-2xl border bg-card p-4 shadow-sm"
+          aria-labelledby="invite-link-heading"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="rounded-full bg-primary/10 p-2 text-primary">
+                <Link2 className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p
+                  id="invite-link-heading"
+                  className="text-sm font-semibold"
+                >
+                  Volunteer invite link
+                </p>
+                {truncatedInvite ? (
+                  <p className="truncate font-mono text-xs text-muted-foreground">
+                    {truncatedInvite}
+                  </p>
+                ) : latestInviteQuery.isLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading…</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No invite link yet — create one from Manage.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {inviteUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteUrl)
+                      toast.success('Copied invite link')
+                    } catch {
+                      toast.error(
+                        'Clipboard blocked — open Manage to copy manually.',
+                      )
+                    }
+                  }}
+                >
+                  Copy
+                </Button>
+              )}
+              <Button type="button" size="sm" asChild>
+                <Link to="/admin/links">Manage invite links</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="rounded-2xl border bg-card p-5 shadow-sm">
         {progress && progress.total > 0 ? (

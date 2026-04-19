@@ -121,12 +121,24 @@ export function AdminLoginPage() {
               If you don&apos;t have the link, run setup from scratch or ask a
               fellow admin to share theirs.
             </p>
+            <p>
+              Already created your org but lost the invite or admin link?{' '}
+              <Link
+                className="text-primary underline-offset-4 hover:underline"
+                to={APP_CONFIG.rebuildLinksRoute}
+              >
+                Rebuild them from your Supabase keys.
+              </Link>
+            </p>
           </CardContent>
           <CardFooter className="flex flex-wrap gap-2">
             <Button asChild>
               <Link to={APP_CONFIG.setupRoute}>Run setup</Link>
             </Button>
             <Button variant="outline" asChild>
+              <Link to={APP_CONFIG.rebuildLinksRoute}>Rebuild links</Link>
+            </Button>
+            <Button variant="ghost" asChild>
               <Link to="/volunteer">Go to volunteer home</Link>
             </Button>
           </CardFooter>

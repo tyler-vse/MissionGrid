@@ -15,4 +15,5 @@ export const queryKeys = {
   shiftMembers: (shiftId: string) => ['shiftMembers', shiftId] as const,
   campaignReport: (campaignId: string) =>
     ['campaignReport', campaignId] as const,
+  orgInvites: (orgId: string) => ['orgInvites', orgId] as const,
 }

@@ -14,6 +14,7 @@ export const APP_CONFIG = {
   inviteRoute: '/join',
   adminLoginRoute: '/admin-login',
   adminConnectRoute: '/admin-connect',
+  rebuildLinksRoute: '/rebuild-links',
   authCallbackRoute: '/auth/callback',
   loginRoute: '/login',
   /** Optional — set for fork branding / support link in docs UI */

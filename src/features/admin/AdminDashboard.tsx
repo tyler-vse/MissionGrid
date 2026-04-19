@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   FileUp,
   LayoutDashboard,
+  Link2,
   LogOut,
   Megaphone,
   ShieldCheck,
@@ -16,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { APP_CONFIG } from '@/config/app.config'
 import { AdminCampaignDetail } from '@/features/admin/AdminCampaignDetail'
 import { AdminCampaigns } from '@/features/admin/AdminCampaigns'
+import { AdminLinks } from '@/features/admin/AdminLinks'
 import { AdminOverview } from '@/features/admin/AdminOverview'
 import { AdminImport } from '@/features/admin/AdminImport'
 import { AdminReview } from '@/features/admin/AdminReview'
@@ -35,6 +37,7 @@ const navItems = [
     label: 'Volunteers',
     icon: Users,
   },
+  { to: '/admin/links', end: false, label: 'Links', icon: Link2 },
 ] as const
 
 export function AdminDashboard() {
@@ -129,6 +132,7 @@ export function AdminDashboard() {
           <Route path="imports" element={<AdminImport />} />
           <Route path="review" element={<AdminReview />} />
           <Route path="volunteers" element={<AdminVolunteers />} />
+          <Route path="links" element={<AdminLinks />} />
         </Routes>
       </main>
     </div>

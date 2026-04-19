@@ -26,6 +26,8 @@ import {
   testGoogleMapsKey,
   testSupabaseConnection,
 } from '@/config/runtimeConfig'
+import { AdminBookmarkCard } from '@/components/links/AdminBookmarkCard'
+import { InviteLinkCard } from '@/components/links/InviteLinkCard'
 import { CenterPointPicker } from '@/features/setup/CenterPointPicker'
 import { completeSupabaseOrgSetup } from '@/features/setup/completeSupabaseSetup'
 import { PreflightChecklist } from '@/features/setup/preflight/PreflightChecklist'
@@ -36,6 +38,7 @@ import {
   parseLocationCsvPreview,
   previewRowsToImportable,
 } from '@/lib/csv'
+import { formatUnknownError } from '@/lib/errors'
 import { geocodeBatch } from '@/lib/geocodeBatch'
 import { useMockBackendStore } from '@/store/mockBackendStore'
 import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
@@ -240,6 +243,10 @@ export function SetupWizard() {
   }
 
   const finishSupabase = async () => {
+    if (inviteUrl) {
+      setStep(6)
+      return
+    }
     const values = form.getValues()
     const url = values.supabaseUrl?.trim() ?? ''
     const key = values.supabaseAnonKey?.trim() ?? ''
@@ -384,7 +391,7 @@ export function SetupWizard() {
       toast.success('Cloud setup complete — copy the invite link for volunteers.')
       setStep(6)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUnknownError(e))
     } finally {
       setBusy(false)
     }
@@ -469,6 +476,15 @@ export function SetupWizard() {
             </Button>
           </CardContent>
         </Card>
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          Already ran setup but lost your invite or admin link?{' '}
+          <Link
+            className="text-primary underline-offset-4 hover:underline"
+            to={APP_CONFIG.rebuildLinksRoute}
+          >
+            Rebuild them from your Supabase keys.
+          </Link>
+        </p>
       </div>
     )
   }
@@ -1263,153 +1279,20 @@ http://localhost:5173/*`}
 
           {mode === 'supabase' && step === 6 && inviteUrl && (
             <div className="space-y-4 text-sm">
-              <div className="space-y-2">
-                <p className="font-medium text-foreground">Volunteer invite link</p>
-                <p className="break-all rounded border bg-muted p-2 font-mono text-xs">{inviteUrl}</p>
-                <Button
-                  type="button"
-                  className="w-full sm:w-auto"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(inviteUrl)
-                      toast.success('Copied invite link')
-                    } catch {
-                      toast.error('Clipboard blocked — select the link above and copy it manually.')
-                    }
-                  }}
-                >
-                  Copy invite link
-                </Button>
-              </div>
-
-              <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
-                <p className="font-medium text-foreground">Share it with volunteers</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => window.open(inviteUrl, '_blank', 'noopener,noreferrer')}
-                  >
-                    Open link in new tab
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const orgName = form.getValues('organizationName')?.trim() || 'our team'
-                      const subject = encodeURIComponent(`You're invited to ${orgName}`)
-                      const body = encodeURIComponent(
-                        `Hi,\n\nYou're invited to join ${orgName} on MissionGrid. Tap the link below to set up your account:\n\n${inviteUrl}\n\nThanks!`,
-                      )
-                      window.location.href = `mailto:?subject=${subject}&body=${body}`
-                    }}
-                  >
-                    Share by email
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const orgName = form.getValues('organizationName')?.trim() || 'our team'
-                      const body = encodeURIComponent(`Join ${orgName} on MissionGrid: ${inviteUrl}`)
-                      window.location.href = `sms:?&body=${body}`
-                    }}
-                  >
-                    Share by text
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  &ldquo;Share by text&rdquo; opens your phone&apos;s messages app — works best on iOS / Android.
-                </p>
-              </div>
-
-              <div className="space-y-2 rounded-md border border-border bg-background p-3">
-                <p className="font-medium text-foreground">What volunteers will see</p>
-                <ol className="ml-4 list-decimal space-y-1 text-xs text-muted-foreground">
-                  <li>They tap the link you sent and MissionGrid opens in their browser.</li>
-                  <li>They enter their name and email — no password needed.</li>
-                  <li>They tap <span className="font-medium text-foreground">Join</span> and land on the volunteer home screen, ready to check in locations.</li>
-                </ol>
-                <p className="text-xs text-muted-foreground">
-                  Tip: press <span className="font-medium text-foreground">Open link in new tab</span> above to try the flow yourself before sharing it.
-                </p>
-              </div>
+              <InviteLinkCard
+                inviteUrl={inviteUrl}
+                orgName={form.getValues('organizationName')}
+              />
 
               <p className="text-xs text-muted-foreground">
                 You can always find this invite link again from Admin settings.
               </p>
 
               {adminUrl && (
-                <div className="space-y-3 rounded-md border border-primary/30 bg-primary/5 p-3">
-                  <div className="space-y-1">
-                    <p className="font-medium text-foreground">
-                      Your admin bookmark link
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Save this on every device you&apos;ll admin from. Opening
-                      it once lets you sign in with email + password from then
-                      on.
-                    </p>
-                  </div>
-                  <p className="break-all rounded border bg-background p-2 font-mono text-xs">
-                    {adminUrl}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(adminUrl)
-                          toast.success('Copied admin link')
-                        } catch {
-                          toast.error(
-                            'Clipboard blocked — select the link above and copy it manually.',
-                          )
-                        }
-                      }}
-                    >
-                      Copy admin link
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        window.open(adminUrl, '_blank', 'noopener,noreferrer')
-                      }
-                    >
-                      Open in new tab
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        const orgName =
-                          form.getValues('organizationName')?.trim() ||
-                          'your team'
-                        const subject = encodeURIComponent(
-                          `Admin bookmark for ${orgName} on MissionGrid`,
-                        )
-                        const body = encodeURIComponent(
-                          `Open this link on any device you admin from, then sign in with your email and password:\n\n${adminUrl}\n\nKeep this link private — it lets anyone who has it reach the admin sign-in page for ${orgName}.`,
-                        )
-                        window.location.href = `mailto:?subject=${subject}&body=${body}`
-                      }}
-                    >
-                      Email myself
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Signing in requires the email and password you set in Step
-                    3 (Admin account). The link only pre-loads the Supabase
-                    connection — not your password.
-                  </p>
-                </div>
+                <AdminBookmarkCard
+                  adminUrl={adminUrl}
+                  orgName={form.getValues('organizationName')}
+                />
               )}
             </div>
           )}
@@ -1453,14 +1336,24 @@ http://localhost:5173/*`}
                 Finish setup
               </Button>
             ) : mode === 'supabase' && step === 5 ? (
-              <Button
-                type="button"
-                className="flex-1 sm:flex-none"
-                disabled={busy}
-                onClick={() => void finishSupabase()}
-              >
-                {busy ? 'Creating…' : 'Create cloud org'}
-              </Button>
+              inviteUrl ? (
+                <Button
+                  type="button"
+                  className="flex-1 sm:flex-none"
+                  onClick={() => setStep(6)}
+                >
+                  Return to invite links
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  className="flex-1 sm:flex-none"
+                  disabled={busy}
+                  onClick={() => void finishSupabase()}
+                >
+                  {busy ? 'Creating…' : 'Create cloud org'}
+                </Button>
+              )
             ) : mode === 'supabase' && step === 6 ? (
               <Button type="button" className="flex-1 sm:flex-none" asChild>
                 <Link to="/volunteer">Go to volunteer home</Link>
