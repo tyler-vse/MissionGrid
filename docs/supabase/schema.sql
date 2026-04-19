@@ -8,7 +8,7 @@ create extension if not exists "pgcrypto";
 -- Core tables
 -- ---------------------------------------------------------------------------
 
-create table public.organizations (
+create table if not exists public.organizations (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   slug text not null unique,
@@ -16,7 +16,7 @@ create table public.organizations (
   updated_at timestamptz not null default now()
 );
 
-create table public.org_invites (
+create table if not exists public.org_invites (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
   token text not null unique,
@@ -24,9 +24,9 @@ create table public.org_invites (
   created_at timestamptz not null default now()
 );
 
-create index org_invites_org_idx on public.org_invites (organization_id);
+create index if not exists org_invites_org_idx on public.org_invites (organization_id);
 
-create table public.volunteers (
+create table if not exists public.volunteers (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
   display_name text not null,
@@ -39,9 +39,9 @@ create table public.volunteers (
   created_at timestamptz not null default now()
 );
 
-create index volunteers_org_idx on public.volunteers (organization_id);
+create index if not exists volunteers_org_idx on public.volunteers (organization_id);
 
-create table public.service_areas (
+create table if not exists public.service_areas (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
   name text not null,
@@ -52,9 +52,9 @@ create table public.service_areas (
   created_at timestamptz not null default now()
 );
 
-create index service_areas_org_idx on public.service_areas (organization_id);
+create index if not exists service_areas_org_idx on public.service_areas (organization_id);
 
-create table public.locations (
+create table if not exists public.locations (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
   service_area_id uuid references public.service_areas (id) on delete set null,
@@ -78,12 +78,12 @@ create table public.locations (
   updated_at timestamptz not null default now()
 );
 
-create index locations_org_idx on public.locations (organization_id);
-create index locations_status_idx on public.locations (organization_id, status);
+create index if not exists locations_org_idx on public.locations (organization_id);
+create index if not exists locations_status_idx on public.locations (organization_id, status);
 
 alter table public.locations replica identity full;
 
-create table public.location_history (
+create table if not exists public.location_history (
   id uuid primary key default gen_random_uuid(),
   location_id uuid not null references public.locations (id) on delete cascade,
   volunteer_id uuid references public.volunteers (id),
@@ -95,10 +95,10 @@ create table public.location_history (
   created_at timestamptz not null default now()
 );
 
-create index location_history_loc_idx on public.location_history (location_id, created_at);
-create index location_history_shift_idx on public.location_history (shift_id);
+create index if not exists location_history_loc_idx on public.location_history (location_id, created_at);
+create index if not exists location_history_shift_idx on public.location_history (shift_id);
 
-create table public.app_configuration (
+create table if not exists public.app_configuration (
   organization_id uuid primary key references public.organizations (id) on delete cascade,
   is_configured boolean not null default true,
   enabled_features jsonb,
@@ -109,7 +109,7 @@ create table public.app_configuration (
 -- Campaigns, shifts, shift members (grant-reporting phase)
 -- ---------------------------------------------------------------------------
 
-create table public.campaigns (
+create table if not exists public.campaigns (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
   name text not null,
@@ -123,10 +123,10 @@ create table public.campaigns (
   updated_at timestamptz not null default now()
 );
 
-create index campaigns_org_idx on public.campaigns (organization_id);
-create index campaigns_status_idx on public.campaigns (organization_id, status);
+create index if not exists campaigns_org_idx on public.campaigns (organization_id);
+create index if not exists campaigns_status_idx on public.campaigns (organization_id, status);
 
-create table public.shifts (
+create table if not exists public.shifts (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
   campaign_id uuid references public.campaigns (id) on delete set null,
@@ -144,12 +144,12 @@ create table public.shifts (
   created_at timestamptz not null default now()
 );
 
-create index shifts_org_idx on public.shifts (organization_id);
-create index shifts_campaign_idx on public.shifts (campaign_id);
-create index shifts_leader_idx on public.shifts (leader_volunteer_id);
-create index shifts_started_idx on public.shifts (organization_id, started_at);
+create index if not exists shifts_org_idx on public.shifts (organization_id);
+create index if not exists shifts_campaign_idx on public.shifts (campaign_id);
+create index if not exists shifts_leader_idx on public.shifts (leader_volunteer_id);
+create index if not exists shifts_started_idx on public.shifts (organization_id, started_at);
 
-create table public.shift_members (
+create table if not exists public.shift_members (
   id uuid primary key default gen_random_uuid(),
   shift_id uuid not null references public.shifts (id) on delete cascade,
   display_name text not null,
@@ -158,17 +158,30 @@ create table public.shift_members (
   left_at timestamptz
 );
 
-create index shift_members_shift_idx on public.shift_members (shift_id);
+create index if not exists shift_members_shift_idx on public.shift_members (shift_id);
 
 -- Late-bind FKs from location_history to shifts / shift_members so that
 -- the history table can be created before these tables in schema order.
-alter table public.location_history
-  add constraint location_history_shift_fk
-  foreign key (shift_id) references public.shifts (id) on delete set null;
+-- Guarded so re-running schema.sql on an existing project is a no-op.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'location_history_shift_fk'
+  ) then
+    alter table public.location_history
+      add constraint location_history_shift_fk
+      foreign key (shift_id) references public.shifts (id) on delete set null;
+  end if;
 
-alter table public.location_history
-  add constraint location_history_member_fk
-  foreign key (acted_by_member_id) references public.shift_members (id) on delete set null;
+  if not exists (
+    select 1 from pg_constraint where conname = 'location_history_member_fk'
+  ) then
+    alter table public.location_history
+      add constraint location_history_member_fk
+      foreign key (acted_by_member_id) references public.shift_members (id) on delete set null;
+  end if;
+end
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Audit trigger for locations
@@ -614,15 +627,25 @@ alter table public.campaigns enable row level security;
 alter table public.shifts enable row level security;
 alter table public.shift_members enable row level security;
 
+drop policy if exists organizations_rw on public.organizations;
 create policy organizations_rw on public.organizations for all using (true) with check (true);
+drop policy if exists org_invites_rw on public.org_invites;
 create policy org_invites_rw on public.org_invites for all using (true) with check (true);
+drop policy if exists volunteers_rw on public.volunteers;
 create policy volunteers_rw on public.volunteers for all using (true) with check (true);
+drop policy if exists service_areas_rw on public.service_areas;
 create policy service_areas_rw on public.service_areas for all using (true) with check (true);
+drop policy if exists locations_rw on public.locations;
 create policy locations_rw on public.locations for all using (true) with check (true);
+drop policy if exists location_history_rw on public.location_history;
 create policy location_history_rw on public.location_history for all using (true) with check (true);
+drop policy if exists app_configuration_rw on public.app_configuration;
 create policy app_configuration_rw on public.app_configuration for all using (true) with check (true);
+drop policy if exists campaigns_rw on public.campaigns;
 create policy campaigns_rw on public.campaigns for all using (true) with check (true);
+drop policy if exists shifts_rw on public.shifts;
 create policy shifts_rw on public.shifts for all using (true) with check (true);
+drop policy if exists shift_members_rw on public.shift_members;
 create policy shift_members_rw on public.shift_members for all using (true) with check (true);
 
 -- ---------------------------------------------------------------------------

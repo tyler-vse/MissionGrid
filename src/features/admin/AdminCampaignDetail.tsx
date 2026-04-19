@@ -21,6 +21,7 @@ import {
   exportCampaignCsv,
 } from '@/features/admin/reports/exportCampaignCsv'
 import { downloadCampaignPdf } from '@/features/admin/reports/exportCampaignPdf'
+import { formatUnknownError } from '@/lib/errors'
 
 function formatDate(iso?: string): string {
   if (!iso) return '—'
@@ -79,7 +80,7 @@ export function AdminCampaignDetail() {
       downloadCampaignPdf(report)
       toast.success('PDF downloaded')
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUnknownError(e))
     }
   }
 
@@ -95,7 +96,7 @@ export function AdminCampaignDetail() {
         campaign.status === 'active' ? 'Campaign archived' : 'Campaign reopened',
       )
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUnknownError(e))
     }
   }
 

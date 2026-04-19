@@ -15,18 +15,18 @@ Branding and product copy live in [`src/config/app.config.ts`](../../src/config/
 
 ### Upgrading an existing project (campaigns + shifts + party join)
 
-The grant-reporting tables (`campaigns`, `shifts`, `shift_members`) and the
-`record_location_action` / `start_shift` / `end_shift` / `generate_party_token`
-/ `join_shift_party` / `update_shift_party_size` RPCs ship in the same
-`schema.sql`. Re-running the file on an existing project is idempotent for the
-RPCs and trigger (they use `create or replace`), but the `create table`
-statements will error if a table already exists. For an in-place upgrade, run
-just the new `create table public.campaigns ...`, `public.shifts ...`,
-`public.shift_members ...`, the `alter table public.volunteers add column if
-not exists is_ephemeral ...`, the `alter table public.location_history add
-column if not exists shift_id ...` / `acted_by_member_id ...` plus the two
-late-bound FK `alter table` statements, then the `create or replace function`
-blocks, then the new RLS rows. Man-hours = `shift duration × party_size`.
+If your project was provisioned before the Phase 2 grant-reporting tables
+existed (symptom: admin UI 404s on `/rest/v1/campaigns`), open the Supabase
+SQL editor and run [`upgrade-campaigns.sql`](./upgrade-campaigns.sql). It is
+fully idempotent — safe to paste in whole, safe to re-run — and adds the
+`campaigns`, `shifts`, and `shift_members` tables, the late-bound FKs on
+`location_history`, the shift/campaign RPCs, the permissive RLS policies, and
+a `notify pgrst, 'reload schema'` at the end so PostgREST picks up the new
+tables immediately.
+
+`schema.sql` itself is also idempotent now (`create table if not exists`,
+`drop policy if exists` + `create policy`, guarded `add constraint`), so
+re-running the full file against an existing project is equally safe.
 
 ## 3. Authentication (admin signup in the wizard)
 
@@ -55,6 +55,7 @@ After setup, the wizard shows an invite URL (`/join#mg-invite-v1...`). Share it 
 |-------|-----|
 | “relation does not exist” | Run `schema.sql`. |
 | “Could not find the table … in the schema cache” (PostgREST `PGRST205`) | Run `schema.sql` in the Supabase SQL editor. Wizard step 2 offers a one-click **Copy schema SQL** + **Open SQL Editor** helper. |
+| `GET /rest/v1/campaigns … 404` when opening Admin → Campaigns | Project predates the grant-reporting tables. Run [`upgrade-campaigns.sql`](./upgrade-campaigns.sql) in the SQL editor. |
 | Realtime not updating | Enable replication for `locations`. |
 | `join_volunteer` fails | Ensure `org_invites` has a row for your `organization_id` and `token` (wizard creates this). |
 | JWT errors | Double-check URL and anon key; no service role key in the client. |

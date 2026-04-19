@@ -22,6 +22,7 @@ import { SectionHeader } from '@/components/ui/section-header'
 import { Textarea } from '@/components/ui/textarea'
 import { useCampaigns } from '@/data/useCampaigns'
 import { useCreateCampaign } from '@/data/useCreateCampaign'
+import { formatUnknownError } from '@/lib/errors'
 
 const schema = z
   .object({
@@ -79,7 +80,7 @@ export function AdminCampaigns() {
       form.reset()
       setOpen(false)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUnknownError(e))
     }
   })
 
