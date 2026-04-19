@@ -7,4 +7,12 @@ export const queryKeys = {
   progress: (orgId: string) => ['progress', orgId] as const,
   recentEvents: (orgId: string) => ['recentEvents', orgId] as const,
   suggestedPlaces: (orgId: string) => ['suggestedPlaces', orgId] as const,
+  campaigns: (orgId: string) => ['campaigns', orgId] as const,
+  campaign: (id: string) => ['campaign', id] as const,
+  shifts: (orgId: string, campaignId?: string | null) =>
+    ['shifts', orgId, campaignId ?? null] as const,
+  shift: (id: string) => ['shift', id] as const,
+  shiftMembers: (shiftId: string) => ['shiftMembers', shiftId] as const,
+  campaignReport: (campaignId: string) =>
+    ['campaignReport', campaignId] as const,
 }

@@ -68,11 +68,12 @@ Open the URL Vite prints (usually `http://localhost:5173`).
 | `/` | Public landing page — hero, how it works, features, personas, open-source / BYOK, FAQ |
 | `/setup` | First-run wizard: mock org, or Supabase + Google + CSV + **volunteer invite link** |
 | `/join#…` | Volunteers open the link from the coordinator; name + email signup (no password) |
-| `/volunteer` | Home — pick a time window, start a shift |
-| `/shift` | Active shift — Navigate / Claim / Complete / Skip / I have more time |
+| `/join-shift#…` | Walk-ups scan the QR code from the shift leader and add themselves to the active party with just a first name |
+| `/volunteer` | Home — pick a time window, pick party size + campaign, start a shift |
+| `/shift` | Active shift — Navigate / Claim / Complete / Skip / Invite walk-ups |
 | `/locations` | Combined Places list + Map with service-area overlay |
 | `/progress` | Organization-wide thermometer with per-area breakdown |
-| `/admin`, `/admin/imports`, `/admin/review`, `/admin/volunteers` | Admin sub-pages |
+| `/admin`, `/admin/campaigns`, `/admin/campaigns/:id`, `/admin/imports`, `/admin/review`, `/admin/volunteers` | Admin sub-pages (campaigns page downloads grant-ready PDF + CSV) |
 
 Scripts: `npm run build`, `npm run preview`, `npm run typecheck`, `npm run lint`.
 
@@ -184,9 +185,22 @@ Phase 3 tracks a dedicated UMD build + iframe-friendly styles.
 - A slim **ConnectionBanner** surfaces offline/reconnecting state above the header.
 - Full offline write queueing is a Phase 3 goal.
 
+## Campaigns & grant reporting
+
+When a grant officer asks "how were the funds spent?", MissionGrid rolls every shift up into a **Campaign** and hands you a one-click PDF + CSV.
+
+- Admins create Campaigns from **`/admin/campaigns`** (name, optional grant reference number, start/end dates, description).
+- Volunteers tag a campaign on the Volunteer home before they tap **Start my shift**, alongside a **"Who's with you?"** chip row (`Just me`, `+1`, `+2`, `+3`, stepper for larger groups). Party size multiplies into volunteer-hour totals.
+- When someone shows up unannounced, the shift leader taps **Invite** in the shift header. A bottom sheet shows a QR code + shareable link (`/join-shift#mg-party-v1.<b64>`), which the walk-up scans and enters a first name to join the party via the `join_shift_party` RPC. Their stops attribute to the shift and member.
+- On **`/admin/campaigns/:id`** admins see total volunteer hours, stops completed, headcount, and shift-by-shift breakdown, with **Download PDF** and **Download CSV** buttons. PDF is rendered client-side via `jspdf` + `jspdf-autotable`; CSV is flat rows ready for pivoting.
+
+Schema for campaigns + shifts + shift_members + the `record_location_action` / `start_shift` / `end_shift` / `generate_party_token` / `join_shift_party` / `update_shift_party_size` RPCs is in [`docs/supabase/schema.sql`](docs/supabase/schema.sql). See the upgrade notes in [`docs/supabase/README.md`](docs/supabase/README.md#upgrading-an-existing-project-campaigns--shifts--party-join).
+
+> Screenshot placeholder: `src/assets/screenshots/campaign-report.png` — add after first real PDF export.
+
 ## Supabase schema
 
-Single source of truth: [`docs/supabase/schema.sql`](docs/supabase/schema.sql) — organizations, volunteers, service areas, locations, `org_invites`, `app_configuration`, `location_history`, RLS (permissive for self-hosted single-tenant; tighten for multi-tenant).
+Single source of truth: [`docs/supabase/schema.sql`](docs/supabase/schema.sql) — organizations, volunteers, service areas, locations, `org_invites`, `app_configuration`, `location_history`, campaigns, shifts, `shift_members`, RLS (permissive for self-hosted single-tenant; tighten for multi-tenant).
 
 The suggested-places review queue is mock-only in this phase; the relevant `BackendProvider` methods are optional (`listSuggestedPlaces`, `approveSuggestedPlace`, `rejectSuggestedPlace`) and will light up in admin once a Supabase schema lands for them.
 

@@ -28,10 +28,18 @@ Branding and product strings live in [`src/config/app.config.ts`](../src/config/
 - **PWA**: install prompt, ConnectionBanner, `offlineFirst` query client, tap-target audit, updated icons + manifest.
 - **Docs**: onboarding walkthrough, screenshot placeholders, embed stub.
 
-## Phase 3 (next)
+## Phase 3 — Campaigns & grant reporting (shipped)
+
+- **Campaigns**: new `campaigns` table + `/admin/campaigns` list/create + `/admin/campaigns/:id` detail with grant-friendly stats. Volunteers can tag shifts to a campaign from the home screen.
+- **Persisted shifts**: new `shifts` + `shift_members` tables with `start_shift` / `end_shift` / `update_shift_party_size` RPCs. `location_history` gained `shift_id` + `acted_by_member_id` so stop events roll up into shifts.
+- **"Who's with you?" + walk-up join**: party-size chips on Volunteer home, an Invite-walk-ups sheet with a QR code (via `qrcode.react`) pointing to a short-lived `/join-shift#mg-party-v1.<b64>` link. Walk-ups land via `join_shift_party` RPC with just a first name.
+- **PDF + CSV reports**: `/admin/campaigns/:id` now downloads a grant-ready PDF (via `jspdf` + `jspdf-autotable`) and a flat CSV for grant officers to pivot. Man-hours = shift duration × party size.
+
+## Phase 4 (next)
 
 - Supabase-backed suggested-places queue (mirror `SuggestedPlace` model into `docs/supabase/schema.sql`).
 - Business hours import (CSV column + Places hours fetch), smarter routing (2-opt / OR-Tools WASM).
 - Full offline write queue with IndexedDB-backed mutation replay.
 - Dedicated UMD embed build + WordPress plugin wrapper, iframe theming.
 - White-label theme export (primary/accent from APP_CONFIG → CSS vars at build time).
+- Per-member time tracking using `shift_members.joined_at` / `left_at` so headcount × duration math becomes headcount-minutes summed per member.

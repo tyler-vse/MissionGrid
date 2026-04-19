@@ -13,6 +13,21 @@ Branding and product copy live in [`src/config/app.config.ts`](../../src/config/
 2. Paste the contents of [`schema.sql`](./schema.sql) and run it.
 3. Optional: under **Database → Replication**, add `locations` and `location_history` to the `supabase_realtime` publication so volunteer devices receive live updates.
 
+### Upgrading an existing project (campaigns + shifts + party join)
+
+The grant-reporting tables (`campaigns`, `shifts`, `shift_members`) and the
+`record_location_action` / `start_shift` / `end_shift` / `generate_party_token`
+/ `join_shift_party` / `update_shift_party_size` RPCs ship in the same
+`schema.sql`. Re-running the file on an existing project is idempotent for the
+RPCs and trigger (they use `create or replace`), but the `create table`
+statements will error if a table already exists. For an in-place upgrade, run
+just the new `create table public.campaigns ...`, `public.shifts ...`,
+`public.shift_members ...`, the `alter table public.volunteers add column if
+not exists is_ephemeral ...`, the `alter table public.location_history add
+column if not exists shift_id ...` / `acted_by_member_id ...` plus the two
+late-bound FK `alter table` statements, then the `create or replace function`
+blocks, then the new RLS rows. Man-hours = `shift duration × party_size`.
+
 ## 3. Authentication (admin signup in the wizard)
 
 The setup wizard uses **email + password** for the first admin (`signUp` / `signIn`).

@@ -3,6 +3,7 @@ import {
   FileUp,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   ShieldCheck,
   Users,
 } from 'lucide-react'
@@ -13,6 +14,8 @@ import { toast } from 'sonner'
 import { AppName } from '@/components/branding/AppName'
 import { Button } from '@/components/ui/button'
 import { APP_CONFIG } from '@/config/app.config'
+import { AdminCampaignDetail } from '@/features/admin/AdminCampaignDetail'
+import { AdminCampaigns } from '@/features/admin/AdminCampaigns'
 import { AdminOverview } from '@/features/admin/AdminOverview'
 import { AdminImport } from '@/features/admin/AdminImport'
 import { AdminReview } from '@/features/admin/AdminReview'
@@ -23,6 +26,7 @@ import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 
 const navItems = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutDashboard },
+  { to: '/admin/campaigns', end: false, label: 'Campaigns', icon: Megaphone },
   { to: '/admin/imports', end: false, label: 'Imports', icon: FileUp },
   { to: '/admin/review', end: false, label: 'Review', icon: ShieldCheck },
   {
@@ -120,6 +124,8 @@ export function AdminDashboard() {
       <main className="mx-auto w-full max-w-3xl flex-1 space-y-6 px-4 py-6">
         <Routes>
           <Route index element={<AdminOverview />} />
+          <Route path="campaigns" element={<AdminCampaigns />} />
+          <Route path="campaigns/:id" element={<AdminCampaignDetail />} />
           <Route path="imports" element={<AdminImport />} />
           <Route path="review" element={<AdminReview />} />
           <Route path="volunteers" element={<AdminVolunteers />} />

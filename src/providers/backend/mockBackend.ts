@@ -6,6 +6,24 @@ import type {
 } from '@/providers/backend/BackendProvider'
 import { useMockBackendStore } from '@/store/mockBackendStore'
 
+function randomPartyToken(): string {
+  const bytes = new Uint8Array(9)
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes)
+  } else {
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256)
+    }
+  }
+  let bin = ''
+  for (const b of bytes) bin += String.fromCharCode(b)
+  const b64 =
+    typeof btoa !== 'undefined'
+      ? btoa(bin)
+      : Buffer.from(bytes).toString('base64')
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
 export const mockBackend: BackendProvider = {
   async getAppConfiguration(orgId) {
     const cfg = useMockBackendStore.getState().appConfiguration
@@ -63,47 +81,65 @@ export const mockBackend: BackendProvider = {
       )
   },
 
-  async claimLocation(locationId, volunteerId) {
-    useMockBackendStore.getState().claimLocation(locationId, volunteerId)
+  async claimLocation(input) {
+    useMockBackendStore
+      .getState()
+      .claimLocation(input.locationId, input.volunteerId, {
+        shiftId: input.shiftId,
+        memberId: input.memberId,
+      })
     const loc = useMockBackendStore
       .getState()
-      .locations.find((l) => l.id === locationId)
+      .locations.find((l) => l.id === input.locationId)
     if (!loc) throw new Error('Location not found')
     return loc
   },
 
-  async completeLocation(locationId, volunteerId, notes) {
-    useMockBackendStore.getState().completeLocation(locationId, volunteerId)
-    if (notes) {
+  async completeLocation(input) {
+    useMockBackendStore
+      .getState()
+      .completeLocation(input.locationId, input.volunteerId, {
+        shiftId: input.shiftId,
+        memberId: input.memberId,
+      })
+    if (input.note) {
       useMockBackendStore.setState((s) => ({
         locations: s.locations.map((l) =>
-          l.id === locationId ? { ...l, notes } : l,
+          l.id === input.locationId ? { ...l, notes: input.note } : l,
         ),
       }))
     }
     const loc = useMockBackendStore
       .getState()
-      .locations.find((l) => l.id === locationId)
+      .locations.find((l) => l.id === input.locationId)
     if (!loc) throw new Error('Location not found')
     return loc
   },
 
-  async skipLocation(locationId, volunteerId) {
-    useMockBackendStore.getState().skipLocation(locationId, volunteerId)
-    const loc = useMockBackendStore
-      .getState()
-      .locations.find((l) => l.id === locationId)
-    if (!loc) throw new Error('Location not found')
-    return loc
-  },
-
-  async setPendingReview(locationId, volunteerId, reason) {
+  async skipLocation(input) {
     useMockBackendStore
       .getState()
-      .setPendingReview(locationId, volunteerId, reason)
+      .skipLocation(input.locationId, input.volunteerId, {
+        shiftId: input.shiftId,
+        memberId: input.memberId,
+      })
     const loc = useMockBackendStore
       .getState()
-      .locations.find((l) => l.id === locationId)
+      .locations.find((l) => l.id === input.locationId)
+    if (!loc) throw new Error('Location not found')
+    return loc
+  },
+
+  async setPendingReview(input) {
+    useMockBackendStore
+      .getState()
+      .setPendingReview(input.locationId, input.volunteerId, input.note, {
+        shiftId: input.shiftId,
+        memberId: input.memberId,
+      })
+    const loc = useMockBackendStore
+      .getState()
+      .locations.find((l) => l.id === input.locationId)
     if (!loc) throw new Error('Location not found')
     return loc
   },
@@ -210,7 +246,6 @@ export const mockBackend: BackendProvider = {
   async approveSuggestedPlace(placeId) {
     const store = useMockBackendStore.getState()
     store.updateSuggestedPlace(placeId, { status: 'approved' })
-    // Find the matching pending_review location by coordinates + name best-effort
     const suggestion = store.suggestedPlaces.find((p) => p.id === placeId)
     if (!suggestion) throw new Error('Suggested place not found')
     const loc = store.locations.find(
@@ -245,5 +280,134 @@ export const mockBackend: BackendProvider = {
           ),
       ),
     }))
+  },
+
+  async listCampaigns(orgId) {
+    return useMockBackendStore
+      .getState()
+      .campaigns.filter((c) => c.organizationId === orgId)
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
+  },
+
+  async getCampaign(id) {
+    return (
+      useMockBackendStore.getState().campaigns.find((c) => c.id === id) ?? null
+    )
+  },
+
+  async createCampaign(input) {
+    return useMockBackendStore.getState().createCampaign(input)
+  },
+
+  async updateCampaign(id, patch) {
+    const updated = useMockBackendStore.getState().updateCampaign(id, patch)
+    if (!updated) throw new Error('Campaign not found')
+    return updated
+  },
+
+  async startShift(input) {
+    return useMockBackendStore.getState().startShift({
+      organizationId: input.organizationId,
+      leaderVolunteerId: input.leaderVolunteerId,
+      campaignId: input.campaignId ?? undefined,
+      partySize: input.partySize,
+      timeWindowMinutes: input.timeWindowMinutes,
+      originLat: input.originLat ?? undefined,
+      originLng: input.originLng ?? undefined,
+    })
+  },
+
+  async endShift(shiftId) {
+    const ended = useMockBackendStore.getState().endShift(shiftId)
+    if (!ended) throw new Error('Shift not found')
+    return ended
+  },
+
+  async updateShiftPartySize(shiftId, partySize) {
+    const updated = useMockBackendStore
+      .getState()
+      .updateShift(shiftId, {
+        partySize: Math.max(1, Math.min(50, partySize || 1)),
+      })
+    if (!updated) throw new Error('Shift not found')
+    return updated
+  },
+
+  async getShift(shiftId) {
+    return (
+      useMockBackendStore.getState().shifts.find((s) => s.id === shiftId) ??
+      null
+    )
+  },
+
+  async listShifts(input) {
+    return useMockBackendStore
+      .getState()
+      .shifts.filter((s) => {
+        if (s.organizationId !== input.organizationId) return false
+        if (input.campaignId && s.campaignId !== input.campaignId) return false
+        if (input.from && new Date(s.startedAt) < new Date(input.from))
+          return false
+        if (input.to && new Date(s.startedAt) > new Date(input.to)) return false
+        return true
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+      )
+  },
+
+  async generatePartyToken(shiftId, ttlMinutes = 1440) {
+    const token = randomPartyToken()
+    const expiresAt = new Date(Date.now() + ttlMinutes * 60_000).toISOString()
+    const updated = useMockBackendStore.getState().updateShift(shiftId, {
+      partyToken: token,
+      partyTokenExpiresAt: expiresAt,
+    })
+    if (!updated) throw new Error('Shift not found')
+    return updated
+  },
+
+  async joinShiftParty(shiftId, token, displayName) {
+    const store = useMockBackendStore.getState()
+    const shift = store.shifts.find((s) => s.id === shiftId)
+    if (!shift) throw new Error('shift_not_found')
+    if (shift.status !== 'active') throw new Error('shift_not_active')
+    if (!shift.partyToken || shift.partyToken !== token) {
+      throw new Error('invalid_party_token')
+    }
+    if (
+      shift.partyTokenExpiresAt &&
+      new Date(shift.partyTokenExpiresAt).getTime() < Date.now()
+    ) {
+      throw new Error('party_token_expired')
+    }
+    const trimmed = displayName.trim()
+    if (!trimmed) throw new Error('name_required')
+    const member = store.addShiftMember({
+      shiftId,
+      displayName: trimmed,
+      firstName: trimmed,
+    })
+    const nextMemberCount = store.shiftMembers.filter(
+      (m) => m.shiftId === shiftId,
+    ).length + 1
+    store.updateShift(shiftId, {
+      partySize: Math.max(shift.partySize, nextMemberCount + 1),
+    })
+    return member
+  },
+
+  async listShiftMembers(shiftId) {
+    return useMockBackendStore
+      .getState()
+      .shiftMembers.filter((m) => m.shiftId === shiftId)
+      .sort(
+        (a, b) =>
+          new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime(),
+      )
   },
 }

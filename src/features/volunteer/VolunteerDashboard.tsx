@@ -1,4 +1,4 @@
-import { Clock, MapPin, Play, Sparkles, Users } from 'lucide-react'
+import { Clock, MapPin, Play, Sparkles, UserPlus, Users } from 'lucide-react'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -10,21 +10,36 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Stat } from '@/components/ui/stat'
 import { Skeleton } from '@/components/ui/skeleton'
 import { APP_CONFIG, type TimeWindowMinutes } from '@/config/app.config'
+import { useCampaigns } from '@/data/useCampaigns'
 import { useLocations } from '@/data/useLocations'
 import { useProgress } from '@/data/useProgress'
 import { useServiceAreas } from '@/data/useServiceAreas'
+import { useStartShift } from '@/data/useStartShift'
 import { useActiveVolunteer } from '@/data/useVolunteer'
 import { useShiftStore } from '@/store/shiftStore'
 
+const PARTY_PRESETS: { size: number; label: string }[] = [
+  { size: 1, label: 'Just me' },
+  { size: 2, label: '+1' },
+  { size: 3, label: '+2' },
+  { size: 4, label: '+3' },
+]
+
 export function VolunteerDashboard() {
   const navigate = useNavigate()
-  const { volunteer } = useActiveVolunteer()
+  const { volunteer, activeVolunteerId } = useActiveVolunteer()
   const { data: locations = [], isLoading: loadingLocations } = useLocations()
   const { data: progress, isLoading: loadingProgress } = useProgress()
+  const { data: campaigns = [] } = useCampaigns()
   const serviceAreas = useServiceAreas()
+  const startShiftRemote = useStartShift()
 
   const minutes = useShiftStore((s) => s.minutes)
   const shiftStatus = useShiftStore((s) => s.status)
+  const partySize = useShiftStore((s) => s.partySize)
+  const selectedCampaignId = useShiftStore((s) => s.campaignId)
+  const setPartySize = useShiftStore((s) => s.setPartySize)
+  const setCampaignId = useShiftStore((s) => s.setCampaignId)
   const startShift = useShiftStore((s) => s.startShift)
   const resetShift = useShiftStore((s) => s.resetShift)
 
@@ -33,25 +48,63 @@ export function VolunteerDashboard() {
     [locations],
   )
 
+  const activeCampaigns = useMemo(
+    () => campaigns.filter((c) => c.status === 'active'),
+    [campaigns],
+  )
+
   const chooseMinutes = (m: TimeWindowMinutes) => {
     useShiftStore.setState({ minutes: m })
   }
 
-  const onStart = () => {
-    const origin = serviceAreas[0]
+  const onStart = async () => {
+    const area = serviceAreas[0]
+    const origin = area
       ? {
-          lat: serviceAreas[0].centerLat,
-          lng: serviceAreas[0].centerLng,
-          label: serviceAreas[0].name,
+          lat: area.centerLat,
+          lng: area.centerLng,
+          label: area.name,
         }
       : null
-    startShift({ minutes, origin })
+
+    let remoteShiftId: string | null = null
+    if (activeVolunteerId) {
+      try {
+        const remote = await startShiftRemote.mutateAsync({
+          leaderVolunteerId: activeVolunteerId,
+          campaignId: selectedCampaignId ?? null,
+          partySize,
+          timeWindowMinutes: minutes,
+          originLat: origin?.lat ?? null,
+          originLng: origin?.lng ?? null,
+        })
+        remoteShiftId = remote.id
+      } catch (e) {
+        // Offline or backend doesn't support shifts — keep local shift only.
+        const msg = e instanceof Error ? e.message : String(e)
+        if (!/does not support shifts/i.test(msg)) {
+          toast.message(`Shift saved locally (${msg})`)
+        }
+      }
+    }
+
+    startShift({
+      minutes,
+      origin,
+      shiftId: remoteShiftId,
+      campaignId: selectedCampaignId ?? null,
+      partySize,
+    })
     toast.success(`Shift started — ${minutes} minute window`)
     void navigate('/shift')
   }
 
   const onContinue = () => {
     void navigate('/shift')
+  }
+
+  const bumpParty = (delta: number) => {
+    setPartySize(partySize + delta)
   }
 
   return (
@@ -115,11 +168,102 @@ export function VolunteerDashboard() {
             </Chip>
           ))}
         </div>
+
+        <div className="mt-5">
+          <div className="mb-2 flex items-center gap-2">
+            <UserPlus className="h-4 w-4 text-primary" aria-hidden />
+            <p className="text-sm font-semibold text-foreground">
+              Who&apos;s with you?
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {PARTY_PRESETS.map((p) => (
+              <Chip
+                key={p.size}
+                size="sm"
+                selected={partySize === p.size}
+                onClick={() => setPartySize(p.size)}
+                aria-label={`${p.size} ${p.size === 1 ? 'person' : 'people'}`}
+              >
+                {p.label}
+              </Chip>
+            ))}
+            {partySize > 4 && (
+              <Chip size="sm" selected>
+                {partySize} people
+              </Chip>
+            )}
+            <div className="inline-flex items-center gap-1 rounded-full border bg-background p-0.5">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 rounded-full"
+                aria-label="Decrease party size"
+                onClick={() => bumpParty(-1)}
+                disabled={partySize <= 1}
+              >
+                −
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 rounded-full"
+                aria-label="Increase party size"
+                onClick={() => bumpParty(1)}
+                disabled={partySize >= 50}
+              >
+                +
+              </Button>
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Counts toward total volunteer hours for grant reports.
+          </p>
+        </div>
+
+        {activeCampaigns.length > 0 && (
+          <div className="mt-5">
+            <p className="mb-2 text-sm font-semibold text-foreground">
+              Campaign (optional)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Chip
+                size="sm"
+                selected={!selectedCampaignId}
+                onClick={() => setCampaignId(null)}
+              >
+                No campaign
+              </Chip>
+              {activeCampaigns.map((c) => (
+                <Chip
+                  key={c.id}
+                  size="sm"
+                  selected={selectedCampaignId === c.id}
+                  onClick={() => setCampaignId(c.id)}
+                >
+                  {c.name}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+
         <Button
           size="xl"
-          className="mt-4 w-full gap-2"
-          onClick={shiftStatus === 'active' ? onContinue : onStart}
-          disabled={openCount === 0 && shiftStatus !== 'active'}
+          className="mt-5 w-full gap-2"
+          onClick={() => {
+            if (shiftStatus === 'active') {
+              onContinue()
+            } else {
+              void onStart()
+            }
+          }}
+          disabled={
+            (openCount === 0 && shiftStatus !== 'active') ||
+            startShiftRemote.isPending
+          }
         >
           {shiftStatus === 'active' ? (
             <>
@@ -128,7 +272,7 @@ export function VolunteerDashboard() {
           ) : (
             <>
               <Sparkles className="h-5 w-5" />
-              Start my shift
+              {startShiftRemote.isPending ? 'Starting…' : 'Start my shift'}
             </>
           )}
         </Button>

@@ -11,6 +11,7 @@ import { LandingPage } from '@/features/landing/LandingPage'
 import { LocationsList } from '@/features/locations/LocationsList'
 import { ProgressDashboard } from '@/features/progress/ProgressDashboard'
 import { SetupWizard } from '@/features/setup/SetupWizard'
+import { JoinShiftPage } from '@/features/shift/JoinShiftPage'
 import { ShiftView } from '@/features/shift/ShiftView'
 import { VolunteerDashboard } from '@/features/volunteer/VolunteerDashboard'
 import { APP_CONFIG } from '@/config/app.config'
@@ -22,6 +23,7 @@ export function AppRouter() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/setup" element={<SetupWizard />} />
         <Route path="/join" element={<JoinPage />} />
+        <Route path="/join-shift" element={<JoinShiftPage />} />
         <Route path={APP_CONFIG.loginRoute} element={<VolunteerLoginPage />} />
         <Route path={APP_CONFIG.authCallbackRoute} element={<AuthCallbackPage />} />
         <Route path={APP_CONFIG.adminConnectRoute} element={<AdminConnectPage />} />

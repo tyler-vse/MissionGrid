@@ -25,11 +25,13 @@ import { APP_CONFIG } from '@/config/app.config'
 import { filterLocationsByArea } from '@/domain/services/areaFilter'
 import { useClaimLocation } from '@/data/useClaimLocation'
 import { useCompleteLocation } from '@/data/useCompleteLocation'
+import { useEndShift } from '@/data/useEndShift'
 import { useLocations } from '@/data/useLocations'
 import { useServiceAreas } from '@/data/useServiceAreas'
 import { useSkipLocation } from '@/data/useSkipLocation'
 import { useActiveVolunteer } from '@/data/useVolunteer'
 import { FindMorePlaces } from '@/features/shift/FindMorePlaces'
+import { PartyInviteSheet } from '@/features/shift/PartyInviteSheet'
 import { useRegistry } from '@/providers/useRegistry'
 import { useAreaFilterStore } from '@/store/areaFilterStore'
 import {
@@ -51,6 +53,7 @@ export function ShiftView() {
   const claim = useClaimLocation()
   const complete = useCompleteLocation()
   const skip = useSkipLocation()
+  const endRemoteShift = useEndShift()
 
   const shift = useShiftStore()
   const [showFindMore, setShowFindMore] = useState(false)
@@ -182,11 +185,16 @@ export function ShiftView() {
       toast.error('Pick a volunteer in the header')
       return
     }
+    const ctx = {
+      shiftId: shift.shiftId ?? null,
+      memberId: shift.partyMemberId ?? null,
+    }
     try {
       if (kind === 'claim') {
         await claim.mutateAsync({
           locationId: id,
           volunteerId: activeVolunteerId,
+          ...ctx,
         })
         shift.recordClaim(id)
         toast.success('Claimed — head over when ready')
@@ -194,6 +202,7 @@ export function ShiftView() {
         await complete.mutateAsync({
           locationId: id,
           volunteerId: activeVolunteerId,
+          ...ctx,
         })
         shift.recordComplete(id)
         const done = shift.completedLocationIds.length + 1
@@ -202,6 +211,7 @@ export function ShiftView() {
         await skip.mutateAsync({
           locationId: id,
           volunteerId: activeVolunteerId,
+          ...ctx,
         })
         shift.recordSkip(id)
         toast('Skipped')
@@ -217,10 +227,21 @@ export function ShiftView() {
     setShowFindMore(true)
   }
 
-  const endShift = () => {
+  const endShift = async () => {
     const done = shift.completedLocationIds.length
+    const remoteId = shift.shiftId
     shift.endShift()
     toast.success(`Shift ended — ${done} place${done === 1 ? '' : 's'} done`)
+    if (remoteId) {
+      try {
+        await endRemoteShift.mutateAsync(remoteId)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (!/does not support/i.test(msg)) {
+          toast.message(`Ended locally (${msg})`)
+        }
+      }
+    }
     void navigate('/volunteer')
   }
 
@@ -252,15 +273,18 @@ export function ShiftView() {
               )}
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={endShift}
-            className="shrink-0 gap-1"
-          >
-            <Flag className="h-4 w-4" />
-            End
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <PartyInviteSheet shiftId={shift.shiftId} />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void endShift()}
+              className="gap-1"
+            >
+              <Flag className="h-4 w-4" />
+              End
+            </Button>
+          </div>
         </div>
         <div className="mt-2">
           <Thermometer

@@ -13,12 +13,16 @@ export function useCompleteLocation() {
       locationId: string
       volunteerId: string
       notes?: string
+      shiftId?: string | null
+      memberId?: string | null
     }) => {
-      return registry.backend.completeLocation(
-        input.locationId,
-        input.volunteerId,
-        input.notes,
-      )
+      return registry.backend.completeLocation({
+        locationId: input.locationId,
+        volunteerId: input.volunteerId,
+        note: input.notes,
+        shiftId: input.shiftId ?? null,
+        memberId: input.memberId ?? null,
+      })
     },
     onSuccess: () => {
       if (!orgId) return

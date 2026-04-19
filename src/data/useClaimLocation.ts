@@ -9,11 +9,18 @@ export function useClaimLocation() {
   const registry = useRegistry()
 
   return useMutation({
-    mutationFn: async (input: { locationId: string; volunteerId: string }) => {
-      return registry.backend.claimLocation(
-        input.locationId,
-        input.volunteerId,
-      )
+    mutationFn: async (input: {
+      locationId: string
+      volunteerId: string
+      shiftId?: string | null
+      memberId?: string | null
+    }) => {
+      return registry.backend.claimLocation({
+        locationId: input.locationId,
+        volunteerId: input.volunteerId,
+        shiftId: input.shiftId ?? null,
+        memberId: input.memberId ?? null,
+      })
     },
     onSuccess: () => {
       if (!orgId) return

@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import type { AppConfiguration } from '@/domain/models/appConfiguration'
+import type { Campaign } from '@/domain/models/campaign'
 import type { LocationEvent } from '@/domain/models/locationEvent'
 import type { Location } from '@/domain/models/location'
 import type { Organization } from '@/domain/models/organization'
 import type { ServiceArea } from '@/domain/models/serviceArea'
+import type { Shift, ShiftMember } from '@/domain/models/shift'
 import type { SuggestedPlace } from '@/domain/models/suggestedPlace'
 import type { Volunteer } from '@/domain/models/volunteer'
 import { createSeedLocations } from '@/mock/locations'
@@ -11,6 +13,11 @@ import { MOCK_ORGANIZATION } from '@/mock/organization'
 import { MOCK_SERVICE_AREA } from '@/mock/serviceArea'
 import { MOCK_VOLUNTEERS } from '@/mock/volunteers'
 import { MOCK_ORG_ID, MOCK_VOLUNTEER_ALEX } from '@/mock/ids'
+
+export interface MockLocationActionContext {
+  shiftId?: string | null
+  memberId?: string | null
+}
 
 export interface MockBackendState {
   organization: Organization | null
@@ -20,6 +27,9 @@ export interface MockBackendState {
   locations: Location[]
   locationEvents: LocationEvent[]
   suggestedPlaces: SuggestedPlace[]
+  campaigns: Campaign[]
+  shifts: Shift[]
+  shiftMembers: ShiftMember[]
   /** Current volunteer persona for one-tap actions */
   activeVolunteerId: string | null
   /** Load demo org + stops (Phase 1 dev shortcut) */
@@ -43,13 +53,26 @@ export interface MockBackendState {
       'id' | 'organizationId' | 'status' | 'source' | 'serviceAreaId'
     >[],
   ) => void
-  claimLocation: (locationId: string, volunteerId: string) => void
-  completeLocation: (locationId: string, volunteerId: string) => void
-  skipLocation: (locationId: string, volunteerId: string) => void
+  claimLocation: (
+    locationId: string,
+    volunteerId: string,
+    ctx?: MockLocationActionContext,
+  ) => void
+  completeLocation: (
+    locationId: string,
+    volunteerId: string,
+    ctx?: MockLocationActionContext,
+  ) => void
+  skipLocation: (
+    locationId: string,
+    volunteerId: string,
+    ctx?: MockLocationActionContext,
+  ) => void
   setPendingReview: (
     locationId: string,
     volunteerId: string,
     reason?: string,
+    ctx?: MockLocationActionContext,
   ) => void
   addSuggestedPlace: (
     input: Omit<SuggestedPlace, 'id' | 'status' | 'createdAt'> & {
@@ -60,6 +83,23 @@ export interface MockBackendState {
     id: string,
     patch: Partial<SuggestedPlace>,
   ) => SuggestedPlace | null
+  createCampaign: (
+    input: Omit<Campaign, 'id' | 'createdAt' | 'updatedAt' | 'status'> & {
+      status?: Campaign['status']
+    },
+  ) => Campaign
+  updateCampaign: (id: string, patch: Partial<Campaign>) => Campaign | null
+  startShift: (
+    input: Omit<
+      Shift,
+      'id' | 'startedAt' | 'status' | 'createdAt' | 'endedAt'
+    >,
+  ) => Shift
+  endShift: (shiftId: string) => Shift | null
+  updateShift: (id: string, patch: Partial<Shift>) => Shift | null
+  addShiftMember: (
+    input: Omit<ShiftMember, 'id' | 'joinedAt'> & { joinedAt?: string },
+  ) => ShiftMember
   resetToEmpty: () => void
 }
 
@@ -83,6 +123,9 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
   locations: [],
   locationEvents: [],
   suggestedPlaces: [],
+  campaigns: [],
+  shifts: [],
+  shiftMembers: [],
   activeVolunteerId: null,
 
   loadDemo: () => {
@@ -99,6 +142,9 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       locations: createSeedLocations(),
       locationEvents: [],
       suggestedPlaces: [],
+      campaigns: [],
+      shifts: [],
+      shiftMembers: [],
       activeVolunteerId: MOCK_VOLUNTEER_ALEX,
     })
   },
@@ -153,6 +199,9 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       locations,
       locationEvents: [],
       suggestedPlaces: [],
+      campaigns: [],
+      shifts: [],
+      shiftMembers: [],
       activeVolunteerId: volunteers[0]!.id,
       appConfiguration: {
         organizationId: orgId,
@@ -183,7 +232,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
     }))
   },
 
-  claimLocation: (locationId, volunteerId) => {
+  claimLocation: (locationId, volunteerId, ctx) => {
     const ts = new Date().toISOString()
     set((s) => {
       const prev = s.locations.find((l) => l.id === locationId)
@@ -204,6 +253,8 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
         id: newId('evt'),
         locationId,
         volunteerId,
+        shiftId: ctx?.shiftId ?? undefined,
+        actedByMemberId: ctx?.memberId ?? undefined,
         fromStatus: prev.status,
         toStatus: 'claimed',
         createdAt: ts,
@@ -212,7 +263,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
     })
   },
 
-  completeLocation: (locationId, volunteerId) => {
+  completeLocation: (locationId, volunteerId, ctx) => {
     const ts = new Date().toISOString()
     set((s) => {
       const prev = s.locations.find((l) => l.id === locationId)
@@ -236,6 +287,8 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
         id: newId('evt'),
         locationId,
         volunteerId,
+        shiftId: ctx?.shiftId ?? undefined,
+        actedByMemberId: ctx?.memberId ?? undefined,
         fromStatus: prev.status,
         toStatus: 'completed',
         createdAt: ts,
@@ -247,7 +300,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
     })
   },
 
-  skipLocation: (locationId, volunteerId) => {
+  skipLocation: (locationId, volunteerId, ctx) => {
     const ts = new Date().toISOString()
     set((s) => {
       const prev = s.locations.find((l) => l.id === locationId)
@@ -267,6 +320,8 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
         id: newId('evt'),
         locationId,
         volunteerId,
+        shiftId: ctx?.shiftId ?? undefined,
+        actedByMemberId: ctx?.memberId ?? undefined,
         fromStatus: prev.status,
         toStatus: 'skipped',
         createdAt: ts,
@@ -278,7 +333,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
     })
   },
 
-  setPendingReview: (locationId, volunteerId, reason) => {
+  setPendingReview: (locationId, volunteerId, reason, ctx) => {
     const ts = new Date().toISOString()
     set((s) => {
       const prev = s.locations.find((l) => l.id === locationId)
@@ -297,6 +352,8 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
         id: newId('evt'),
         locationId,
         volunteerId,
+        shiftId: ctx?.shiftId ?? undefined,
+        actedByMemberId: ctx?.memberId ?? undefined,
         fromStatus: prev.status,
         toStatus: 'pending_review',
         note: reason,
@@ -341,6 +398,102 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
     return updated
   },
 
+  createCampaign: (input) => {
+    const ts = new Date().toISOString()
+    const org = get().organization
+    const record: Campaign = {
+      id: newId('cmp'),
+      organizationId: input.organizationId || org?.id || MOCK_ORG_ID,
+      name: input.name,
+      description: input.description,
+      grantReference: input.grantReference,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      status: input.status ?? 'active',
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    set((s) => ({ campaigns: [...s.campaigns, record] }))
+    return record
+  },
+
+  updateCampaign: (id, patch) => {
+    const ts = new Date().toISOString()
+    let updated: Campaign | null = null
+    set((s) => ({
+      campaigns: s.campaigns.map((c) => {
+        if (c.id !== id) return c
+        updated = { ...c, ...patch, id: c.id, updatedAt: ts }
+        return updated
+      }),
+    }))
+    return updated
+  },
+
+  startShift: (input) => {
+    const ts = new Date().toISOString()
+    const record: Shift = {
+      id: newId('shf'),
+      organizationId: input.organizationId,
+      campaignId: input.campaignId,
+      leaderVolunteerId: input.leaderVolunteerId,
+      partySize: Math.max(1, Math.min(50, input.partySize || 1)),
+      timeWindowMinutes: input.timeWindowMinutes,
+      originLat: input.originLat,
+      originLng: input.originLng,
+      startedAt: ts,
+      status: 'active',
+      partyToken: input.partyToken,
+      partyTokenExpiresAt: input.partyTokenExpiresAt,
+      createdAt: ts,
+    }
+    set((s) => ({ shifts: [...s.shifts, record] }))
+    return record
+  },
+
+  endShift: (shiftId) => {
+    const ts = new Date().toISOString()
+    let updated: Shift | null = null
+    set((s) => ({
+      shifts: s.shifts.map((sh) => {
+        if (sh.id !== shiftId) return sh
+        if (sh.status !== 'active') {
+          updated = sh
+          return sh
+        }
+        updated = { ...sh, status: 'ended', endedAt: ts }
+        return updated
+      }),
+    }))
+    return updated
+  },
+
+  updateShift: (id, patch) => {
+    let updated: Shift | null = null
+    set((s) => ({
+      shifts: s.shifts.map((sh) => {
+        if (sh.id !== id) return sh
+        updated = { ...sh, ...patch, id: sh.id }
+        return updated
+      }),
+    }))
+    return updated
+  },
+
+  addShiftMember: (input) => {
+    const ts = input.joinedAt ?? new Date().toISOString()
+    const record: ShiftMember = {
+      id: newId('smb'),
+      shiftId: input.shiftId,
+      displayName: input.displayName,
+      firstName: input.firstName,
+      joinedAt: ts,
+      leftAt: input.leftAt,
+    }
+    set((s) => ({ shiftMembers: [...s.shiftMembers, record] }))
+    return record
+  },
+
   resetToEmpty: () =>
     set({
       organization: null,
@@ -350,6 +503,9 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       locations: [],
       locationEvents: [],
       suggestedPlaces: [],
+      campaigns: [],
+      shifts: [],
+      shiftMembers: [],
       activeVolunteerId: null,
     }),
 }))

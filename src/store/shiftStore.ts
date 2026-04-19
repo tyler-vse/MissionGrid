@@ -16,6 +16,25 @@ export interface ShiftState {
   startedAt: string | null
   endedAt: string | null
   origin: ShiftOrigin | null
+
+  /**
+   * Remote shift id assigned by the BackendProvider when `startShift` succeeded.
+   * `null` means this shift exists locally only (offline / mock fallback).
+   */
+  shiftId: string | null
+  /** Remote campaign id if the leader selected one on the volunteer home. */
+  campaignId: string | null
+  /** Headcount for man-hours math: leader + walk-ups. Min 1, max 50. */
+  partySize: number
+  /** Active party share token (from generate_party_token). Nulled on end. */
+  partyToken: string | null
+  partyTokenExpiresAt: string | null
+  /**
+   * When the device is itself a walk-up joiner, the shift_member id we were
+   * assigned. Lets location actions attribute to the member within the party.
+   */
+  partyMemberId: string | null
+
   /** Locations the volunteer personally handled during this shift. */
   completedLocationIds: string[]
   skippedLocationIds: string[]
@@ -23,13 +42,24 @@ export interface ShiftState {
   /** Additional stops added mid-shift via "I have more time". */
   addedLocationIds: string[]
 
+  setMinutes: (m: TimeWindowMinutes) => void
+  setPartySize: (n: number) => void
+  setCampaignId: (id: string | null) => void
+
   startShift: (input: {
     minutes: TimeWindowMinutes
     origin: ShiftOrigin | null
+    shiftId?: string | null
+    campaignId?: string | null
+    partySize?: number
+    partyMemberId?: string | null
   }) => void
   extendShift: (additionalMinutes: number) => void
   endShift: () => void
   resetShift: () => void
+
+  setPartyToken: (token: string | null, expiresAt?: string | null) => void
+  setPartyMember: (memberId: string | null) => void
 
   recordClaim: (locationId: string) => void
   recordComplete: (locationId: string) => void
@@ -44,6 +74,12 @@ function initialState() {
     startedAt: null,
     endedAt: null,
     origin: null,
+    shiftId: null,
+    campaignId: null,
+    partySize: 1,
+    partyToken: null,
+    partyTokenExpiresAt: null,
+    partyMemberId: null,
     completedLocationIds: [],
     skippedLocationIds: [],
     claimedLocationIds: [],
@@ -55,18 +91,38 @@ function unique(list: string[], id: string): string[] {
   return list.includes(id) ? list : [...list, id]
 }
 
+function clampPartySize(n: number): number {
+  if (!Number.isFinite(n)) return 1
+  return Math.max(1, Math.min(50, Math.round(n)))
+}
+
 export const useShiftStore = create<ShiftState>()(
   persist(
     (set) => ({
       ...initialState(),
 
-      startShift: ({ minutes, origin }) =>
+      setMinutes: (m) => set({ minutes: m }),
+      setPartySize: (n) => set({ partySize: clampPartySize(n) }),
+      setCampaignId: (id) => set({ campaignId: id }),
+
+      startShift: ({
+        minutes,
+        origin,
+        shiftId = null,
+        campaignId = null,
+        partySize = 1,
+        partyMemberId = null,
+      }) =>
         set({
           ...initialState(),
           status: 'active',
           minutes,
           startedAt: new Date().toISOString(),
           origin,
+          shiftId,
+          campaignId,
+          partySize: clampPartySize(partySize),
+          partyMemberId,
         }),
 
       extendShift: (additionalMinutes) =>
@@ -80,11 +136,20 @@ export const useShiftStore = create<ShiftState>()(
       endShift: () =>
         set((s) =>
           s.status === 'active'
-            ? { status: 'ended', endedAt: new Date().toISOString() }
+            ? {
+                status: 'ended',
+                endedAt: new Date().toISOString(),
+                partyToken: null,
+                partyTokenExpiresAt: null,
+              }
             : s,
         ),
 
       resetShift: () => set(initialState()),
+
+      setPartyToken: (token, expiresAt = null) =>
+        set({ partyToken: token, partyTokenExpiresAt: expiresAt }),
+      setPartyMember: (memberId) => set({ partyMemberId: memberId }),
 
       recordClaim: (id) =>
         set((s) => ({ claimedLocationIds: unique(s.claimedLocationIds, id) })),
@@ -100,7 +165,23 @@ export const useShiftStore = create<ShiftState>()(
     {
       name: `${APP_CONFIG.storageKey}:shift`,
       storage: createJSONStorage(() => localStorage),
-      version: 1,
+      version: 2,
+      migrate: (persisted, version) => {
+        if (!persisted || typeof persisted !== 'object') return persisted
+        const prev = persisted as Partial<ShiftState>
+        if (version < 2) {
+          return {
+            ...prev,
+            shiftId: prev.shiftId ?? null,
+            campaignId: prev.campaignId ?? null,
+            partySize: clampPartySize(prev.partySize ?? 1),
+            partyToken: prev.partyToken ?? null,
+            partyTokenExpiresAt: prev.partyTokenExpiresAt ?? null,
+            partyMemberId: prev.partyMemberId ?? null,
+          }
+        }
+        return prev
+      },
     },
   ),
 )

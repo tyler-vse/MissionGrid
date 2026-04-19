@@ -155,6 +155,37 @@ export function decodeInviteHash(hash: string): InvitePayloadV1 | null {
   }
 }
 
+export interface PartyPayloadV1 {
+  v: 1
+  shiftId: string
+  partyToken: string
+  supabaseUrl: string
+  supabaseAnonKey: string
+  organizationId: string
+  googleMapsApiKey?: string
+}
+
+export function encodePartyHash(payload: PartyPayloadV1): string {
+  const body = JSON.stringify({ ...payload, v: 1 })
+  return encodePayload('mg-party-v1', body)
+}
+
+export function decodePartyHash(hash: string): PartyPayloadV1 | null {
+  const parsed = decodePayload<PartyPayloadV1>('mg-party-v1', hash)
+  if (!parsed) return null
+  if (parsed.v !== 1) return null
+  if (
+    !parsed.shiftId ||
+    !parsed.partyToken ||
+    !parsed.supabaseUrl ||
+    !parsed.supabaseAnonKey ||
+    !parsed.organizationId
+  ) {
+    return null
+  }
+  return parsed
+}
+
 function utf8ToBinaryString(str: string): string {
   const bytes = new TextEncoder().encode(str)
   let bin = ''

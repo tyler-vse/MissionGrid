@@ -9,11 +9,18 @@ export function useSkipLocation() {
   const registry = useRegistry()
 
   return useMutation({
-    mutationFn: async (input: { locationId: string; volunteerId: string }) => {
-      return registry.backend.skipLocation(
-        input.locationId,
-        input.volunteerId,
-      )
+    mutationFn: async (input: {
+      locationId: string
+      volunteerId: string
+      shiftId?: string | null
+      memberId?: string | null
+    }) => {
+      return registry.backend.skipLocation({
+        locationId: input.locationId,
+        volunteerId: input.volunteerId,
+        shiftId: input.shiftId ?? null,
+        memberId: input.memberId ?? null,
+      })
     },
     onSuccess: () => {
       if (!orgId) return
