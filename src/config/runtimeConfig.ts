@@ -3,6 +3,7 @@ import {
   DEFAULT_PLACE_CATEGORY,
   type PlaceCategoryId,
 } from '@/domain/models/placeCategory'
+import { loadGoogleMaps } from '@/providers/maps/loader'
 
 /** Persisted per-device org + integration settings (never commit real secrets). */
 export interface RuntimeOrgConfig {
@@ -305,13 +306,7 @@ export async function testGoogleMapsKey(
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   if (!apiKey) return { ok: false, message: 'API key is required.' }
   try {
-    const { Loader } = await import('@googlemaps/js-api-loader')
-    const loader = new Loader({
-      apiKey,
-      version: 'weekly',
-      libraries: ['maps'],
-    })
-    await loader.load()
+    await loadGoogleMaps(apiKey)
     return { ok: true }
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) }
