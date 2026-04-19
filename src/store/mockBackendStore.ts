@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AppConfiguration } from '@/domain/models/appConfiguration'
+import type { LocationEvent } from '@/domain/models/locationEvent'
 import type { Location } from '@/domain/models/location'
 import type { Organization } from '@/domain/models/organization'
 import type { ServiceArea } from '@/domain/models/serviceArea'
@@ -16,6 +17,7 @@ export interface MockBackendState {
   serviceAreas: ServiceArea[]
   volunteers: Volunteer[]
   locations: Location[]
+  locationEvents: LocationEvent[]
   /** Current volunteer persona for one-tap actions */
   activeVolunteerId: string | null
   /** Load demo org + stops (Phase 1 dev shortcut) */
@@ -42,6 +44,11 @@ export interface MockBackendState {
   claimLocation: (locationId: string, volunteerId: string) => void
   completeLocation: (locationId: string, volunteerId: string) => void
   skipLocation: (locationId: string, volunteerId: string) => void
+  setPendingReview: (
+    locationId: string,
+    volunteerId: string,
+    reason?: string,
+  ) => void
   resetToEmpty: () => void
 }
 
@@ -63,6 +70,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
   serviceAreas: [],
   volunteers: [],
   locations: [],
+  locationEvents: [],
   activeVolunteerId: null,
 
   loadDemo: () => {
@@ -77,6 +85,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       serviceAreas: [area],
       volunteers: MOCK_VOLUNTEERS.map((v) => ({ ...v })),
       locations: createSeedLocations(),
+      locationEvents: [],
       activeVolunteerId: MOCK_VOLUNTEER_ALEX,
     })
   },
@@ -129,6 +138,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       serviceAreas: [serviceArea],
       volunteers,
       locations,
+      locationEvents: [],
       activeVolunteerId: volunteers[0]!.id,
       appConfiguration: {
         organizationId: orgId,
@@ -161,8 +171,9 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
 
   claimLocation: (locationId, volunteerId) => {
     const ts = new Date().toISOString()
-    set((s) => ({
-      locations: s.locations.map((l) =>
+    set((s) => {
+      const prev = s.locations.find((l) => l.id === locationId)
+      const nextLocs = s.locations.map((l) =>
         l.id === locationId && l.status === 'available'
           ? {
               ...l,
@@ -171,14 +182,27 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
               claimedAt: ts,
             }
           : l,
-      ),
-    }))
+      )
+      if (!prev || prev.status !== 'available') {
+        return { locations: nextLocs }
+      }
+      const ev: LocationEvent = {
+        id: newId('evt'),
+        locationId,
+        volunteerId,
+        fromStatus: prev.status,
+        toStatus: 'claimed',
+        createdAt: ts,
+      }
+      return { locations: nextLocs, locationEvents: [...s.locationEvents, ev] }
+    })
   },
 
   completeLocation: (locationId, volunteerId) => {
     const ts = new Date().toISOString()
-    set((s) => ({
-      locations: s.locations.map((l) => {
+    set((s) => {
+      const prev = s.locations.find((l) => l.id === locationId)
+      const nextLocs = s.locations.map((l) => {
         if (l.id !== locationId) return l
         const allowed =
           l.status === 'claimed' && l.claimedByVolunteerId === volunteerId
@@ -189,13 +213,31 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
           claimedByVolunteerId: volunteerId,
           completedAt: ts,
         }
-      }),
-    }))
+      })
+      const after = nextLocs.find((l) => l.id === locationId)
+      if (!prev || !after || after.status === prev.status) {
+        return { locations: nextLocs }
+      }
+      const ev: LocationEvent = {
+        id: newId('evt'),
+        locationId,
+        volunteerId,
+        fromStatus: prev.status,
+        toStatus: 'completed',
+        createdAt: ts,
+      }
+      return {
+        locations: nextLocs,
+        locationEvents: [...s.locationEvents, ev],
+      }
+    })
   },
 
   skipLocation: (locationId, volunteerId) => {
-    set((s) => ({
-      locations: s.locations.map((l) =>
+    const ts = new Date().toISOString()
+    set((s) => {
+      const prev = s.locations.find((l) => l.id === locationId)
+      const nextLocs = s.locations.map((l) =>
         l.id === locationId
           ? {
               ...l,
@@ -203,8 +245,54 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
               claimedByVolunteerId: volunteerId,
             }
           : l,
-      ),
-    }))
+      )
+      if (!prev || prev.status === 'skipped') {
+        return { locations: nextLocs }
+      }
+      const ev: LocationEvent = {
+        id: newId('evt'),
+        locationId,
+        volunteerId,
+        fromStatus: prev.status,
+        toStatus: 'skipped',
+        createdAt: ts,
+      }
+      return {
+        locations: nextLocs,
+        locationEvents: [...s.locationEvents, ev],
+      }
+    })
+  },
+
+  setPendingReview: (locationId, volunteerId, reason) => {
+    const ts = new Date().toISOString()
+    set((s) => {
+      const prev = s.locations.find((l) => l.id === locationId)
+      const nextLocs = s.locations.map((l) =>
+        l.id === locationId
+          ? {
+              ...l,
+              status: 'pending_review' as const,
+              claimedByVolunteerId: volunteerId,
+              notes: reason ?? l.notes,
+            }
+          : l,
+      )
+      if (!prev) return { locations: nextLocs }
+      const ev: LocationEvent = {
+        id: newId('evt'),
+        locationId,
+        volunteerId,
+        fromStatus: prev.status,
+        toStatus: 'pending_review',
+        note: reason,
+        createdAt: ts,
+      }
+      return {
+        locations: nextLocs,
+        locationEvents: [...s.locationEvents, ev],
+      }
+    })
   },
 
   resetToEmpty: () =>
@@ -214,6 +302,7 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       serviceAreas: [],
       volunteers: [],
       locations: [],
+      locationEvents: [],
       activeVolunteerId: null,
     }),
 }))

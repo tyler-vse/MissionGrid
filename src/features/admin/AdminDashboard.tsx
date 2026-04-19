@@ -11,17 +11,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
 import { APP_CONFIG } from '@/config/app.config'
-import { useImportLocationsFromCsv } from '@/data/useImportLocationsFromCsv'
+import { CsvImport } from '@/features/admin/CsvImport'
 import { useOrganization } from '@/data/useOrganization'
 import { useProgress } from '@/data/useProgress'
 import { useVolunteers } from '@/data/useVolunteers'
-import { parseLocationCsv } from '@/lib/csv'
 import { useMockBackendStore } from '@/store/mockBackendStore'
+import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 
 export function AdminDashboard() {
   const navigate = useNavigate()
@@ -29,36 +26,16 @@ export function AdminDashboard() {
   const { data: org } = useOrganization()
   const { data: progress } = useProgress()
   const { data: volunteers = [] } = useVolunteers()
-  const importCsv = useImportLocationsFromCsv()
   const [tab, setTab] = useState<'overview' | 'imports' | 'review' | 'volunteers'>(
     'overview',
   )
-  const [csvText, setCsvText] = useState('')
 
   const reset = () => {
     useMockBackendStore.getState().resetToEmpty()
+    useRuntimeConfigStore.getState().reset()
     queryClient.clear()
-    toast.message('Reset demo — run setup again.')
+    toast.message('Reset — run setup again.')
     void navigate('/setup', { replace: true })
-  }
-
-  const onImport = () => {
-    const parsed = parseLocationCsv(csvText)
-    if (parsed.errors.length) {
-      toast.error(parsed.errors[0] ?? 'CSV error')
-      return
-    }
-    if (parsed.rows.length === 0) {
-      toast.error('No rows to import')
-      return
-    }
-    importCsv.mutate(parsed.rows, {
-      onSuccess: (r) => {
-        toast.success(`Imported ${r.imported} stops`)
-        setCsvText('')
-      },
-      onError: (e) => toast.error(String(e)),
-    })
   }
 
   return (
@@ -107,7 +84,7 @@ export function AdminDashboard() {
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
-                Phase 2: connect Supabase for real shared data and admin auth.
+                Use setup to connect Supabase for shared data across devices.
               </p>
             </CardContent>
           </Card>
@@ -130,24 +107,11 @@ export function AdminDashboard() {
           <CardHeader>
             <CardTitle className="text-base">CSV import</CardTitle>
             <CardDescription>
-              Headers: name, address, lat, lng — optional category. Phase 2 will
-              geocode addresses automatically.
+              Preview, optional geocode, then import. See docs for column headers.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <Label htmlFor="adminCsv">Paste CSV</Label>
-              <Textarea
-                id="adminCsv"
-                rows={8}
-                value={csvText}
-                onChange={(e) => setCsvText(e.target.value)}
-                placeholder={`name,address,lat,lng\nNew Stop,"1300 Market St",39.74,-104.99`}
-              />
-            </div>
-            <Button onClick={onImport} disabled={importCsv.isPending}>
-              Import to organization
-            </Button>
+          <CardContent>
+            <CsvImport idPrefix="admin" />
           </CardContent>
         </Card>
       )}
@@ -190,17 +154,12 @@ export function AdminDashboard() {
               </ul>
             )}
             <div className="pt-2">
-              <Label className="text-xs text-muted-foreground">
-                Optional Phase 2 credential fields (UI only)
-              </Label>
-              <div className="mt-2 grid gap-2">
-                <Input disabled placeholder="Supabase URL" />
-                <Input disabled placeholder="Supabase anon key" />
-                <Input disabled placeholder="Google Maps API key" />
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {APP_CONFIG.name} keeps secrets out of git — these will wire to the
-                provider registry in Phase 2.
+              <p className="text-xs text-muted-foreground">
+                API keys are stored in this browser only. To change them, open{' '}
+                <Link className="text-primary underline" to={APP_CONFIG.setupRoute}>
+                  {APP_CONFIG.setupRoute}
+                </Link>
+                .
               </p>
             </div>
           </CardContent>

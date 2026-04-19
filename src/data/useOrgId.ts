@@ -1,6 +1,24 @@
+import { isSupabaseConfigured, mergeRuntimeWithEnv } from '@/config/runtimeConfig'
+import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 import { useMockBackendStore } from '@/store/mockBackendStore'
 
-/** Phase 1: org id from mock store. Phase 2: derive from session / Supabase org claim. */
+/**
+ * Active organization: Supabase runtime org when URL+key+orgId are set,
+ * otherwise the in-memory mock org after local setup.
+ */
 export function useOrgId(): string | null {
-  return useMockBackendStore((s) => s.organization?.id ?? null)
+  const runtimeSlice = useRuntimeConfigStore((s) => ({
+    supabaseUrl: s.supabaseUrl,
+    supabaseAnonKey: s.supabaseAnonKey,
+    googleMapsApiKey: s.googleMapsApiKey,
+    organizationId: s.organizationId,
+    volunteerId: s.volunteerId,
+    inviteToken: s.inviteToken,
+  }))
+  const mockOrgId = useMockBackendStore((s) => s.organization?.id ?? null)
+  const merged = mergeRuntimeWithEnv(runtimeSlice)
+  if (isSupabaseConfigured(merged) && merged.organizationId) {
+    return merged.organizationId
+  }
+  return mockOrgId
 }

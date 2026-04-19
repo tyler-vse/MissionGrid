@@ -6,11 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { ActivityStatus } from '@/domain/models/activityStatus'
+import { filterLocationsByArea } from '@/domain/services/areaFilter'
+import { AreaTools } from '@/features/map/AreaTools'
 import { useClaimLocation } from '@/data/useClaimLocation'
 import { useCompleteLocation } from '@/data/useCompleteLocation'
 import { useLocations } from '@/data/useLocations'
 import { useSkipLocation } from '@/data/useSkipLocation'
 import { useActiveVolunteer } from '@/data/useVolunteer'
+import { useAreaFilterStore } from '@/store/areaFilterStore'
 
 type Filter = 'all' | ActivityStatus
 
@@ -22,9 +25,24 @@ export function LocationsList() {
   const claim = useClaimLocation()
   const complete = useCompleteLocation()
   const skip = useSkipLocation()
+  const areaSearch = useAreaFilterStore((s) => s.searchText)
+  const centerLat = useAreaFilterStore((s) => s.centerLat)
+  const centerLng = useAreaFilterStore((s) => s.centerLng)
+  const radiusMeters = useAreaFilterStore((s) => s.radiusMeters)
+  const polygon = useAreaFilterStore((s) => s.polygon)
 
   const filtered = useMemo(() => {
-    return locations.filter((l) => {
+    const c =
+      centerLat != null && centerLng != null
+        ? { lat: centerLat, lng: centerLng }
+        : null
+    const byArea = filterLocationsByArea(locations, {
+      textQuery: areaSearch,
+      center: c,
+      radiusMeters,
+      polygon,
+    })
+    return byArea.filter((l) => {
       if (filter !== 'all' && l.status !== filter) return false
       if (!q.trim()) return true
       const s = q.toLowerCase()
@@ -33,7 +51,7 @@ export function LocationsList() {
         l.address.toLowerCase().includes(s)
       )
     })
-  }, [locations, filter, q])
+  }, [locations, filter, q, areaSearch, centerLat, centerLng, radiusMeters, polygon])
 
   const act = (kind: 'claim' | 'complete' | 'skip', id: string) => {
     if (!activeVolunteerId) {
@@ -54,9 +72,11 @@ export function LocationsList() {
       <div>
         <h1 className="text-xl font-bold tracking-tight">Locations</h1>
         <p className="text-sm text-muted-foreground">
-          Filter, search, and update stops in real time (mock backend).
+          Filter, search, and update stops in real time.
         </p>
       </div>
+
+      <AreaTools />
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

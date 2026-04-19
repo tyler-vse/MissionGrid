@@ -1,7 +1,15 @@
-import type { ServiceArea } from '@/domain/models/serviceArea'
-import { useMockBackendStore } from '@/store/mockBackendStore'
+import { useQuery } from '@tanstack/react-query'
+import { queryKeys } from '@/data/queryKeys'
+import { useOrgId } from '@/data/useOrgId'
+import { useRegistry } from '@/providers/useRegistry'
 
-/** Phase 1: read from mock store. Phase 2: `listServiceAreas` on BackendProvider. */
-export function useServiceAreas(): ServiceArea[] {
-  return useMockBackendStore((s) => s.serviceAreas)
+export function useServiceAreas() {
+  const orgId = useOrgId()
+  const registry = useRegistry()
+  const { data = [] } = useQuery({
+    queryKey: queryKeys.serviceAreas(orgId ?? ''),
+    queryFn: () => registry.backend.listServiceAreas(orgId!),
+    enabled: Boolean(orgId),
+  })
+  return data
 }

@@ -5,9 +5,16 @@
 export const APP_CONFIG = {
   name: 'MissionGrid',
   slug: 'missiongrid',
+  /** localStorage namespace for runtime org config */
+  storageKey: 'missiongrid',
   tagline: 'Coordinate field coverage without duplication',
   description:
     'A volunteer-friendly field coordination app for outreach, canvassing, and local action.',
+  setupRoute: '/setup',
+  inviteRoute: '/join',
+  /** Optional — set for fork branding / support link in docs UI */
+  supportUrl: 'https://github.com',
+  docsUrl: '/docs',
   theme: {
     /** Full CSS color values (injected as CSS variables at runtime) */
     primary: 'hsl(221 83% 53%)',

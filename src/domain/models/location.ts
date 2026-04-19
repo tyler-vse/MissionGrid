@@ -16,6 +16,9 @@ export interface Location {
   organizationId: string
   name: string
   address: string
+  city?: string
+  state?: string
+  postalCode?: string
   lat: number
   lng: number
   category?: string

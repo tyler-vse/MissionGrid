@@ -1,39 +1,91 @@
+import type { EffectiveRuntimeConfig } from '@/config/runtimeConfig'
+import {
+  isGoogleMapsConfigured,
+  isSupabaseConfigured,
+  mergeRuntimeWithEnv,
+} from '@/config/runtimeConfig'
+import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 import type { BackendProvider } from '@/providers/backend/BackendProvider'
 import { mockBackend } from '@/providers/backend/mockBackend'
-import { supabaseBackend } from '@/providers/backend/supabaseBackend'
+import { createSupabaseBackend } from '@/providers/backend/supabaseBackend'
 import type { GeocodingProvider } from '@/providers/geocoding/GeocodingProvider'
+import { createGoogleGeocoder } from '@/providers/geocoding/googleGeocoder'
 import { mockGeocoder } from '@/providers/geocoding/mockGeocoder'
 import type { MapProvider } from '@/providers/maps/MapProvider'
-import { googleMapProvider } from '@/providers/maps/googleMap'
+import { createGoogleMapProvider } from '@/providers/maps/googleMap'
 import { mockMapProvider } from '@/providers/maps/mockMap'
+import type { PlacesProvider } from '@/providers/places/PlacesProvider'
+import { createGooglePlaces } from '@/providers/places/googlePlaces'
+import { mockPlaces } from '@/providers/places/mockPlaces'
+import type { RoutingProvider } from '@/providers/routing/RoutingProvider'
+import { greedyRoutingProvider } from '@/providers/routing/greedyRoutingProvider'
 
 export interface ProviderRegistry {
   backend: BackendProvider
   map: MapProvider
   geocoding: GeocodingProvider
+  places: PlacesProvider
+  routing: RoutingProvider
+  /** Effective config used to build this registry (for status UI) */
+  effectiveConfig: EffectiveRuntimeConfig
 }
 
-/**
- * Phase 1: always mock backend + mock map. Phase 2: branch on env + AppConfiguration.
- */
-export function getProviderRegistry(): ProviderRegistry {
+function forceMockBackend(): boolean {
+  return import.meta.env.VITE_FORCE_MOCK_BACKEND === 'true'
+}
+
+function forceMockMaps(): boolean {
+  return import.meta.env.VITE_FORCE_MOCK_MAPS === 'true'
+}
+
+export function createProviderRegistry(
+  cfg: EffectiveRuntimeConfig,
+): ProviderRegistry {
   const useSupabase =
-    Boolean(import.meta.env.VITE_USE_SUPABASE) &&
-    import.meta.env.VITE_USE_SUPABASE === 'true'
+    !forceMockBackend() && isSupabaseConfigured(cfg)
+  const useGoogle =
+    !forceMockMaps() && isGoogleMapsConfigured(cfg)
+
+  const backend: BackendProvider = useSupabase
+    ? createSupabaseBackend(cfg)
+    : mockBackend
+
+  const map: MapProvider = useGoogle
+    ? createGoogleMapProvider(cfg.googleMapsApiKey)
+    : mockMapProvider
+
+  const geocoding: GeocodingProvider = useGoogle
+    ? createGoogleGeocoder(cfg.googleMapsApiKey)
+    : mockGeocoder
+
+  const places: PlacesProvider = useGoogle
+    ? createGooglePlaces(cfg.googleMapsApiKey)
+    : mockPlaces
 
   return {
-    backend: useSupabase ? supabaseBackend : mockBackend,
-    map:
-      import.meta.env.VITE_USE_GOOGLE_MAPS === 'true'
-        ? googleMapProvider
-        : mockMapProvider,
-    geocoding: mockGeocoder,
+    backend,
+    map,
+    geocoding,
+    places,
+    routing: greedyRoutingProvider,
+    effectiveConfig: cfg,
   }
 }
 
-let singleton: ProviderRegistry | null = null
-
-export function getRegistry(): ProviderRegistry {
-  singleton ??= getProviderRegistry()
-  return singleton
+/**
+ * Fallback when React context is unavailable (e.g. rare module init).
+ * Prefer `useRegistry()` in components.
+ */
+export function getRegistrySnapshot(): ProviderRegistry {
+  const s = useRuntimeConfigStore.getState()
+  return createProviderRegistry(
+    mergeRuntimeWithEnv({
+      supabaseUrl: s.supabaseUrl,
+      supabaseAnonKey: s.supabaseAnonKey,
+      googleMapsApiKey: s.googleMapsApiKey,
+      organizationId: s.organizationId,
+      volunteerId: s.volunteerId,
+      inviteToken: s.inviteToken,
+    }),
+  )
 }

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { ProviderStatusBanner } from '@/components/layout/ProviderStatusBanner'
 import { AppName } from '@/components/branding/AppName'
 import { Logo } from '@/components/branding/Logo'
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,7 @@ export function Header({ className }: { className?: string }) {
         className,
       )}
     >
+      <ProviderStatusBanner />
       <div className="mx-auto flex max-w-lg items-center gap-3 px-4 py-3">
         <Link to="/volunteer" className="flex items-center gap-2 min-w-0">
           <Logo className="shrink-0" />

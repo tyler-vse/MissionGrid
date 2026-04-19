@@ -1,37 +1,64 @@
 # MissionGrid
 
-Volunteer-friendly, mobile-first **field coordination** for nonprofits and street teams: outreach, canvassing, literature drops, pickups, and other simple coverage tasks—without duplicating effort.
+Volunteer-friendly, mobile-first **field coordination** for nonprofits and street teams: outreach, canvassing, literature drops, pickups, and other territory-based tasks—without duplicating effort.
 
-> **Rebrand in one file:** product name, slug, tagline, and description live in [`src/config/app.config.ts`](src/config/app.config.ts) (`APP_CONFIG`). Avoid hardcoding the product name elsewhere; import `APP_CONFIG` or branding components under `src/components/branding/`.
+**Positioning:** MissionGrid is **open-source-first**. Each organization brings **its own** Supabase project and Google Cloud keys. Nothing is tied to a central SaaS controlled by the repo owner—configure everything from the setup wizard or optional Vite env defaults.
+
+> **Rebrand in one file:** product name, slug, tagline, routes, and storage key live in [`src/config/app.config.ts`](src/config/app.config.ts) (`APP_CONFIG`). Avoid hardcoding the product name elsewhere; import `APP_CONFIG` or branding components under `src/components/branding/`.
 
 ## Quickstart
 
 ```bash
-npm install
+npm install --legacy-peer-deps
 npm run dev
 ```
 
-Then open the URL Vite prints (usually `http://localhost:5173`).
+Open the URL Vite prints (usually `http://localhost:5173`).
 
-- First launch goes to **`/setup`**. Use **Try sample data** for instant demo org + ~26 stops, or finish the wizard with your own CSV.
-- **`/volunteer`** — time window + link to suggested route.
-- **`/routes`** — greedy nearest-neighbor suggestions with one-tap claim / complete / skip (mock backend).
-- Bottom tabs: Home, Routes, Stops, Map, Progress.
-- **`/admin`** — overview, CSV import, review placeholder, volunteers; **Reset** returns to setup.
+| Route | Purpose |
+|-------|---------|
+| **`/setup`** | First-run wizard: mock org, or Supabase + Google + CSV + **volunteer invite link** |
+| **`/join#…`** | Volunteers open the link from the coordinator; name + email signup (no password) |
+| **`/volunteer`** | Home: time window → suggested route |
+| **`/routes`** | Greedy nearest-neighbor route; claim / complete / skip |
+| **`/locations`**, **`/map`**, **`/progress`** | Tabs in the shell |
+| **`/admin`** | Overview, **CSV import** (preview + geocode), volunteers; **Reset** clears mock + runtime keys |
 
-Other scripts: `npm run build`, `npm run preview`, `npm run typecheck`, `npm run lint`.
+Scripts: `npm run build`, `npm run preview`, `npm run typecheck`, `npm run lint`.
 
-> **Note:** `vite-plugin-pwa` currently installs with `npm install … --legacy-peer-deps` because its peer range does not yet list Vite 8. The repo is configured for production PWA builds; adjust or pin Vite if you prefer strict peer resolution.
+> **PWA:** `vite-plugin-pwa` may require `--legacy-peer-deps` with Vite 8 until peer ranges align.
 
-Copy [`.env.example`](.env.example) to `.env.local` when you add Phase 2 keys (never commit real secrets).
+## Required services checklist
 
-## Architecture (why this shape)
+| Service | Required? | Used for |
+|---------|-----------|----------|
+| **None** | Optional | “Try sample data” / mock backend works fully offline on one device |
+| **Supabase** | For shared teams | Postgres + Auth (admin email/password) + Realtime + `join_volunteer` RPC |
+| **Google Maps Platform** | Optional | Live map, Places search in area tools, CSV geocoding |
 
-MissionGrid is meant to be **forked by nonprofits** and eventually **embedded** (e.g. WordPress). That favors:
+## Setup (non-technical webmaster)
 
-1. **Clear boundaries** — swap Supabase for PocketBase/Firebase or Google Maps for MapLibre without rewriting screens.
-2. **Static deploy** — Vite build to any static host; optional Phase 2 user-supplied backend URLs from the setup UI.
-3. **Volunteer UX first** — thin routes, fat feature folders, shared primitives.
+1. **Fork or deploy** this static app (any static host).  
+2. **Supabase:** create a project → run [`docs/supabase/schema.sql`](docs/supabase/schema.sql) in the SQL editor → copy **Project URL** + **anon public** key.  
+3. **Google Cloud (optional):** follow [`docs/google-cloud-setup.md`](docs/google-cloud-setup.md), create a browser-restricted API key.  
+4. Open **`/setup`** → choose **Guided setup — Supabase + invite link** → paste keys → create admin account → optional Google step → service area → CSV (or use sample rows) → **Create cloud org**.  
+5. **Copy the invite link** and share it (social, email, QR). Volunteers use **`/join`**.  
+6. **CSV format:** see [`docs/csv-format.md`](docs/csv-format.md) and [`docs/sample-locations.csv`](docs/sample-locations.csv).
+
+More detail: [`docs/supabase/README.md`](docs/supabase/README.md).
+
+## Environment vs UI configuration
+
+| Mechanism | What it stores |
+|-----------|----------------|
+| **Setup wizard / invite link** | `localStorage` under `APP_CONFIG.storageKey` — Supabase URL, anon key, optional Google Maps key, `organizationId`, `volunteerId`, invite token. **Per browser.** |
+| **`.env.local`** (optional) | `VITE_SUPABASE_*`, `VITE_GOOGLE_MAPS_API_KEY` — merged as defaults when UI fields are empty. Good for forks / CI. Never commit secrets. |
+
+Force mock providers for debugging: `VITE_FORCE_MOCK_BACKEND`, `VITE_FORCE_MOCK_MAPS` (see [`.env.example`](.env.example)).
+
+## Architecture
+
+MissionGrid favors **clear boundaries** and a **static deploy**.
 
 ### Layers
 
@@ -42,55 +69,47 @@ flowchart LR
   UI --> Domain[Domain_layer]
   Data --> Domain
   Providers --> Domain
-  Config[config_APP_CONFIG] --> UI
+  Config[APP_CONFIG] --> UI
   Config --> Providers
 ```
 
 | Layer | Folder | Responsibility |
-|--------|--------|------------------|
-| **UI** | `src/features/*`, `src/components/*` | Screens, layout, design system. No direct provider/SDK imports for async work. |
-| **Data** | `src/data/*` | TanStack Query hooks, query keys, org/volunteer helpers. Calls `getRegistry()` only. |
-| **Providers** | `src/providers/*` | `BackendProvider`, `MapProvider`, `GeocodingProvider`, registry; mock + stubs today. |
-| **Domain** | `src/domain/*` | Types/models + pure services (e.g. routing heuristic, progress math). No React. |
+|--------|--------|----------------|
+| **UI** | `src/features/*`, `src/components/*` | Screens, layout. Async work goes through data hooks. |
+| **Data** | `src/data/*` | TanStack Query hooks. Uses **`useRegistry()`** from [`src/providers/useRegistry.ts`](src/providers/useRegistry.ts). |
+| **Providers** | `src/providers/*` | `BackendProvider`, `MapProvider`, `GeocodingProvider`, **`PlacesProvider`**, **`RoutingProvider`**, [`createProviderRegistry`](src/providers/registry.ts). |
+| **Domain** | `src/domain/*` | Types + pure services (`areaFilter`, `routeSuggestion`, `progress`). |
 
-**Phase 1 persistence:** the mock backend is a **Zustand store** (`src/store/mockBackendStore.ts`) so mutations feel shared. It is **not** a substitute for a real API—Phase 2 replaces `mockBackend` with `supabaseBackend` behind the same interface.
+**Mock persistence:** [`src/store/mockBackendStore.ts`](src/store/mockBackendStore.ts) + location audit events. **Supabase:** same `BackendProvider` contract + Postgres triggers for `location_history`.
 
-### Provider contracts (summary)
+### Supabase schema
 
-- **`BackendProvider`** — locations CRUD-style actions, CSV import, progress snapshot, optional realtime subscription hook (`subscribeLocations`). See [`src/providers/backend/BackendProvider.ts`](src/providers/backend/BackendProvider.ts).
-- **`MapProvider`** — `renderMap(props)` returns a React tree; mock uses a schematic grid. See [`src/providers/maps/MapProvider.tsx`](src/providers/maps/MapProvider.tsx).
-- **`GeocodingProvider`** — `geocode` / `reverse`; mock returns fixed center. See [`src/providers/geocoding/GeocodingProvider.ts`](src/providers/geocoding/GeocodingProvider.ts).
+Single source of truth: [`docs/supabase/schema.sql`](docs/supabase/schema.sql) — organizations, volunteers, service areas, locations, `org_invites`, `app_configuration`, `location_history`, RLS (permissive for self-hosted single-tenant; tighten for multi-tenant).
 
-Registry: [`src/providers/registry.ts`](src/providers/registry.ts) (`getRegistry()`).
-
-### Folder map (high level)
+### Folder map
 
 ```
 src/
-  app/           App shell, router, React Query provider
-  config/        APP_CONFIG, feature flags
-  domain/        models + pure services
-  providers/     integrations + registry
+  app/           Router, providers
+  config/        APP_CONFIG, runtime merge helpers
+  domain/        models + services (areaFilter, routing, progress)
+  providers/     backend, maps, geocoding, places, routing, registry
   data/          TanStack Query hooks
-  features/      route-level screens
-  components/    shared UI + layout + branding
-  mock/          seed ids + reusable demo fixtures
-  store/         Phase 1 mock persistence (Zustand)
-  lib/           utils, CSV parsing
-  styles/        Tailwind entry (globals)
+  features/      setup, join, volunteer, routes, admin, map, …
+  store/         mock backend, runtime config, area filter
+  lib/           csv, geocodeBatch
+docs/
+  supabase/      schema + README
+  csv-format.md, sample-locations.csv, google-cloud-setup.md, ROADMAP.md
 ```
-
-## Domain model (TypeScript)
-
-Defined under [`src/domain/models/`](src/domain/models/): **Organization**, **Volunteer**, **Location** (with `ActivityStatus`), **RouteSuggestion**, **SuggestedPlace** (Phase 3), **ServiceArea**, **AppConfiguration**.
 
 ## Brand string grep gate
 
-After rebranding, search the repo for the old literal name. **Application code** should only reference the string via `APP_CONFIG` / branding helpers—see [`src/config/app.config.ts`](src/config/app.config.ts).
+After rebranding, search the repo for the old literal name. Application code should reference branding via `APP_CONFIG` / [`src/components/branding/`](src/components/branding/).
 
 ## Roadmap
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for Phase 2 (Supabase + Maps + credentials UI) and Phase 3 (discovery, hours, smarter routing, embeds).
+See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## License
 

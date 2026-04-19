@@ -43,8 +43,11 @@ export function pickStopsForTimeWindow(input: PickStopsInput): RouteSuggestion {
 
   const candidates = locations.filter(
     (l) =>
-      l.status === 'available' ||
-      (l.status === 'claimed' && l.claimedByVolunteerId === volunteerId),
+      l.status !== 'completed' &&
+      l.status !== 'skipped' &&
+      l.status !== 'pending_review' &&
+      (l.status === 'available' ||
+        (l.status === 'claimed' && l.claimedByVolunteerId === volunteerId)),
   )
 
   const picked: Location[] = []

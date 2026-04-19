@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { useMemo, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -11,13 +12,15 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { APP_CONFIG, type TimeWindowMinutes } from '@/config/app.config'
-import { pickStopsForTimeWindow } from '@/domain/services/routeSuggestion'
+import { filterLocationsByArea } from '@/domain/services/areaFilter'
 import { useClaimLocation } from '@/data/useClaimLocation'
 import { useCompleteLocation } from '@/data/useCompleteLocation'
 import { useLocations } from '@/data/useLocations'
 import { useServiceAreas } from '@/data/useServiceAreas'
 import { useSkipLocation } from '@/data/useSkipLocation'
 import { useActiveVolunteer } from '@/data/useVolunteer'
+import { useRegistry } from '@/providers/useRegistry'
+import { useAreaFilterStore } from '@/store/areaFilterStore'
 
 function parseMinutes(raw: string | null): TimeWindowMinutes {
   const n = Number(raw)
@@ -27,11 +30,17 @@ function parseMinutes(raw: string | null): TimeWindowMinutes {
 }
 
 export function RouteSuggestions() {
+  const registry = useRegistry()
   const [params, setParams] = useSearchParams()
   const minutes = parseMinutes(params.get('minutes'))
   const { data: locations = [], isLoading } = useLocations()
   const serviceAreas = useServiceAreas()
   const { volunteer, activeVolunteerId } = useActiveVolunteer()
+  const areaSearch = useAreaFilterStore((s) => s.searchText)
+  const centerLat = useAreaFilterStore((s) => s.centerLat)
+  const centerLng = useAreaFilterStore((s) => s.centerLng)
+  const radiusMeters = useAreaFilterStore((s) => s.radiusMeters)
+  const polygon = useAreaFilterStore((s) => s.polygon)
   const claim = useClaimLocation()
   const complete = useCompleteLocation()
   const skip = useSkipLocation()
@@ -52,22 +61,52 @@ export function RouteSuggestions() {
 
   const orgId = locations[0]?.organizationId
 
-  const suggestion = useMemo(() => {
-    if (!orgId || !activeVolunteerId) return null
-    return pickStopsForTimeWindow({
-      organizationId: orgId,
-      volunteerId: activeVolunteerId,
-      locations,
-      timeWindowMinutes: minutes,
-      origin: center,
+  const filteredLocations = useMemo(() => {
+    const c =
+      centerLat != null && centerLng != null
+        ? { lat: centerLat, lng: centerLng }
+        : null
+    return filterLocationsByArea(locations, {
+      textQuery: areaSearch,
+      center: c,
+      radiusMeters,
+      polygon,
     })
-  }, [locations, minutes, center, orgId, activeVolunteerId])
+  }, [locations, areaSearch, centerLat, centerLng, radiusMeters, polygon])
+
+  const locationFingerprint = useMemo(
+    () => filteredLocations.map((l) => `${l.id}:${l.status}`).join('|'),
+    [filteredLocations],
+  )
+
+  const { data: suggestion = null } = useQuery({
+    queryKey: [
+      'routeSuggestion',
+      orgId,
+      activeVolunteerId,
+      minutes,
+      center.lat,
+      center.lng,
+      locationFingerprint,
+    ],
+    queryFn: () =>
+      registry.routing.suggestRoute({
+        organizationId: orgId!,
+        volunteerId: activeVolunteerId!,
+        locations: filteredLocations,
+        timeWindowMinutes: minutes,
+        origin: center,
+      }),
+    enabled: Boolean(
+      orgId && activeVolunteerId && filteredLocations.length > 0,
+    ),
+  })
 
   const stops = useMemo(() => {
     if (!suggestion) return []
-    const map = new Map(locations.map((l) => [l.id, l]))
+    const map = new Map(filteredLocations.map((l) => [l.id, l]))
     return suggestion.locationIds.map((id) => map.get(id)).filter(Boolean)
-  }, [suggestion, locations])
+  }, [suggestion, filteredLocations])
 
   const handle = (kind: 'claim' | 'complete' | 'skip', id: string) => {
     if (!activeVolunteerId) {

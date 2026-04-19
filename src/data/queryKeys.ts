@@ -1,5 +1,6 @@
 export const queryKeys = {
-  appConfiguration: ['appConfiguration'] as const,
+  appConfiguration: (orgId: string) => ['appConfiguration', orgId] as const,
+  serviceAreas: (orgId: string) => ['serviceAreas', orgId] as const,
   organization: (orgId: string) => ['organization', orgId] as const,
   volunteers: (orgId: string) => ['volunteers', orgId] as const,
   locations: (orgId: string) => ['locations', orgId] as const,

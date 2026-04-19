@@ -1,12 +1,10 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { Header } from '@/components/layout/Header'
 import { MobileTabBar } from '@/components/layout/MobileTabBar'
-import { useMockBackendStore } from '@/store/mockBackendStore'
+import { useIsAppConfigured } from '@/data/useIsAppConfigured'
 
 export function AppShell() {
-  const configured = useMockBackendStore(
-    (s) => s.appConfiguration?.isConfigured ?? false,
-  )
+  const configured = useIsAppConfigured()
   if (!configured) {
     return <Navigate to="/setup" replace />
   }

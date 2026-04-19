@@ -1,6 +1,7 @@
 export type { ActivityStatus } from './activityStatus'
 export type { AppConfiguration } from './appConfiguration'
 export type { Location, LocationSource, OpenHoursHint } from './location'
+export type { LocationEvent } from './locationEvent'
 export type { Organization } from './organization'
 export type { RouteSuggestion } from './routeSuggestion'
 export type { ServiceArea, GeoPolygon } from './serviceArea'
