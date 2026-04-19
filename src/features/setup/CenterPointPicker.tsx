@@ -342,7 +342,7 @@ function MapClickPicker({
     const pos = { lat, lng }
     marker.position = pos
     map.panTo(pos)
-  }, [lat, lng])
+  }, [lat, lng, status])
 
   useEffect(() => {
     const map = mapRef.current
@@ -364,7 +364,7 @@ function MapClickPicker({
       fillOpacity: 0.08,
       clickable: false,
     })
-  }, [lat, lng, radiusMeters])
+  }, [lat, lng, radiusMeters, status])
 
   if (status === 'error') {
     return (

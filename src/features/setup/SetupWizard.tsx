@@ -1415,15 +1415,32 @@ http://localhost:5173/*`}
           )}
         </CardContent>
         <CardFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-          <Button type="button" variant="outline" onClick={loadDemo}>
-            Try sample data
-          </Button>
           <div className="flex w-full gap-2 sm:w-auto">
-            <Button type="button" variant="ghost" onClick={() => setMode('choose')}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={loadDemo}
+              className="flex-1 sm:flex-none"
+            >
+              Try sample data
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setMode('choose')}
+              className="flex-1 sm:flex-none"
+            >
               Back to modes
             </Button>
+          </div>
+          <div className="flex w-full gap-2 sm:w-auto">
             {(mode === 'mock' ? step > 0 : step > 0) && (
-              <Button type="button" variant="secondary" onClick={back}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={back}
+                className="flex-1 sm:flex-none"
+              >
                 Back
               </Button>
             )}
