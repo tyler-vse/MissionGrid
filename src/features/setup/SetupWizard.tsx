@@ -69,6 +69,58 @@ function deriveSupabaseSqlEditorUrl(projectUrl: string): string {
   }
 }
 
+function ExternalStepButton({
+  href,
+  children,
+  size = 'sm',
+  variant = 'outline',
+}: {
+  href: string
+  children: React.ReactNode
+  size?: 'sm' | 'default'
+  variant?: 'outline' | 'secondary' | 'default'
+}) {
+  return (
+    <Button
+      type="button"
+      size={size}
+      variant={variant}
+      onClick={() => window.open(href, '_blank', 'noopener,noreferrer')}
+    >
+      {children}
+    </Button>
+  )
+}
+
+const CSV_TEMPLATE_CONTENT = `name,address,lat,lng,city,state,postal_code,category,notes
+Community Center,"1200 Market St",39.7392,-104.9903,Denver,CO,80204,community,Open daily 8-6
+Transit Plaza,"1210 Market St",39.741,-104.988,Denver,CO,80204,public,Wheelchair accessible
+`
+
+const CSV_SAMPLE_ROWS = `name,address,lat,lng,category
+Community Center,"1200 Market St",39.7392,-104.9903,community
+Transit Plaza,"1210 Market St",39.741,-104.988,public`
+
+function downloadCsvTemplate() {
+  const blob = new Blob([CSV_TEMPLATE_CONTENT], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'missiongrid-locations-template.csv'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const RADIUS_PRESETS: Array<{ label: string; meters: number }> = [
+  { label: '500 m', meters: 500 },
+  { label: '1 km', meters: 1000 },
+  { label: '2.5 km', meters: 2500 },
+  { label: '5 km', meters: 5000 },
+  { label: '10 km', meters: 10000 },
+]
+
 export function SetupWizard() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -579,13 +631,142 @@ export function SetupWizard() {
           )}
 
           {mode === 'supabase' && step === 3 && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Optional. Needed for map view, Places search, and CSV geocoding.
+                Optional. Needed for the map view, Places search, and turning
+                addresses into coordinates during CSV import. Follow the seven
+                steps below in order — each button opens the exact Google Cloud
+                page you need.
               </p>
+
+              <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3 text-sm">
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">
+                      1. Open Google Cloud Console
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Sign in with the Google account that will own the billing for this app.
+                    </p>
+                    <ExternalStepButton href="https://console.cloud.google.com/">
+                      Open Google Cloud Console
+                    </ExternalStepButton>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">
+                      2. Create or pick a project
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      At the top of the page, click the project dropdown and
+                      either create a new project (give it any name — e.g.
+                      &ldquo;MissionGrid&rdquo;) or pick an existing one.
+                    </p>
+                    <ExternalStepButton href="https://console.cloud.google.com/projectselector2/home/dashboard">
+                      Open project picker
+                    </ExternalStepButton>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">
+                      3. Link a billing account
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Google requires a billing account to use Maps, but there is
+                      a generous monthly free credit that covers small nonprofits.
+                      Follow the page&apos;s prompts to add a card — you will not
+                      be charged unless you exceed the free tier.
+                    </p>
+                    <ExternalStepButton href="https://console.cloud.google.com/billing">
+                      Open billing
+                    </ExternalStepButton>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">
+                      4. Enable the three APIs MissionGrid needs
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Open each link and click the blue <span className="font-medium text-foreground">Enable</span> button. You need all three.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <ExternalStepButton href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com">
+                        Enable Maps JavaScript API
+                      </ExternalStepButton>
+                      <ExternalStepButton href="https://console.cloud.google.com/apis/library/places-backend.googleapis.com">
+                        Enable Places API
+                      </ExternalStepButton>
+                      <ExternalStepButton href="https://console.cloud.google.com/apis/library/geocoding-backend.googleapis.com">
+                        Enable Geocoding API
+                      </ExternalStepButton>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">
+                      5. Create an API key
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      On the Credentials page, click <span className="font-medium text-foreground">+ Create credentials</span> → <span className="font-medium text-foreground">API key</span>. Copy the key that appears.
+                    </p>
+                    <ExternalStepButton href="https://console.cloud.google.com/apis/credentials">
+                      Open Credentials
+                    </ExternalStepButton>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-medium text-foreground">
+                      6. Restrict the key to this app&apos;s domains
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Back on the Credentials page, click the key you just made.
+                      Under <span className="font-medium text-foreground">Application restrictions</span> pick <span className="font-medium text-foreground">HTTP referrers</span>, then paste these two lines into the allowed referrers list. Under <span className="font-medium text-foreground">API restrictions</span>, restrict to the three APIs you enabled in step 4.
+                    </p>
+                    <pre className="whitespace-pre-wrap break-all rounded border bg-background p-2 font-mono text-xs text-foreground">
+{`${window.location.origin}/*
+http://localhost:5173/*`}
+                    </pre>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={async () => {
+                        const text = `${window.location.origin}/*\nhttp://localhost:5173/*`
+                        try {
+                          await navigator.clipboard.writeText(text)
+                          toast.success('Allowed referrers copied')
+                        } catch {
+                          toast.error('Clipboard blocked — select and copy the lines above manually.')
+                        }
+                      }}
+                    >
+                      Copy allowed referrers
+                    </Button>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">
+                      7. Paste the key below and test it
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Paste the key you copied in step 5 into the box below, then
+                      press <span className="font-medium text-foreground">Test Google key</span>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <Label htmlFor="gkey">Google Maps JavaScript API key</Label>
-                <Input id="gkey" type="password" {...form.register('googleMapsApiKey')} autoComplete="off" />
+                <Input
+                  id="gkey"
+                  type="password"
+                  autoComplete="off"
+                  placeholder="AIza…"
+                  {...form.register('googleMapsApiKey', {
+                    onChange: () => setGoogleOk(null),
+                  })}
+                />
               </div>
               <Button
                 type="button"
@@ -599,82 +780,427 @@ export function SetupWizard() {
               >
                 Test Google key
               </Button>
-              {googleOk === false && (
-                <p className="text-xs text-muted-foreground">
-                  Enable Maps JavaScript API + Places + Geocoding in Google Cloud.
-                </p>
+
+              {googleOk === true && (
+                <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm">
+                  <p className="font-medium text-foreground">
+                    Key is working — you can continue.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Press <span className="font-medium text-foreground">Next</span> below to set up your service area.
+                  </p>
+                </div>
               )}
+
+              {googleOk === false && (
+                <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                  <p className="font-medium text-foreground">
+                    Google rejected that key.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Check that you enabled all three APIs in step 4, that billing
+                    is linked in step 3, and that the referrers from step 6 include
+                    this exact domain.
+                  </p>
+                </div>
+              )}
+
+              <details className="rounded-md border border-border bg-background p-3 text-sm">
+                <summary className="cursor-pointer font-medium text-foreground">
+                  If you get stuck
+                </summary>
+                <ul className="mt-2 space-y-2 text-xs text-muted-foreground">
+                  <li>
+                    <span className="font-medium text-foreground">
+                      RefererNotAllowedMapError
+                    </span>{' '}
+                    — the HTTP referrers in step 6 don&apos;t include the domain
+                    you&apos;re loading the app from. Re-copy the two lines above
+                    into Google Cloud.
+                  </li>
+                  <li>
+                    <span className="font-medium text-foreground">
+                      ApiNotActivatedMapError
+                    </span>{' '}
+                    — one of the three APIs in step 4 is not enabled. Open each
+                    link again and confirm you see a green &ldquo;API enabled&rdquo; status.
+                  </li>
+                  <li>
+                    <span className="font-medium text-foreground">
+                      BillingNotEnabledMapError
+                    </span>{' '}
+                    — you need to link a billing account (step 3) before Maps
+                    will answer.
+                  </li>
+                  <li>
+                    <span className="font-medium text-foreground">
+                      InvalidKeyMapError
+                    </span>{' '}
+                    — the key was copied incorrectly. Re-copy from the
+                    Credentials page (step 5) and paste again.
+                  </li>
+                </ul>
+              </details>
+
+              <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Don&apos;t have a key yet? You can add one later in Admin
+                  settings. Without a key the map view and address-only CSV
+                  import are disabled.
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    form.setValue('googleMapsApiKey', '')
+                    setGoogleOk(null)
+                    toast.message('Skipping Google Maps — you can add a key later.')
+                    setStep(4)
+                  }}
+                >
+                  Skip for now
+                </Button>
+              </div>
             </div>
           )}
 
-          {step === 4 && (
-            <div className="space-y-3">
+          {step === 4 && (() => {
+            const currentRadius = form.watch('radiusMeters')
+            return (
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                This is the area your volunteers will cover. The <span className="font-medium text-foreground">center point</span> is the middle of your territory; the <span className="font-medium text-foreground">radius</span> is how far out from the center it extends.
+              </p>
+
               <div>
                 <Label htmlFor="serviceAreaName">Service area name</Label>
                 <Input id="serviceAreaName" {...form.register('serviceAreaName')} />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  A friendly name volunteers will see (e.g. &ldquo;Downtown coverage&rdquo; or &ldquo;East side route&rdquo;).
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="centerLat">Center latitude</Label>
-                  <Input
-                    id="centerLat"
-                    type="number"
-                    step="any"
-                    {...form.register('centerLat', { valueAsNumber: true })}
-                  />
+
+              <div className="space-y-2">
+                <Label>Center point</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      if (!('geolocation' in navigator)) {
+                        toast.error('This browser does not support geolocation.')
+                        return
+                      }
+                      toast.message('Asking your browser for your location…')
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          form.setValue('centerLat', Number(pos.coords.latitude.toFixed(6)), {
+                            shouldValidate: true,
+                          })
+                          form.setValue('centerLng', Number(pos.coords.longitude.toFixed(6)), {
+                            shouldValidate: true,
+                          })
+                          toast.success('Centered on your current location.')
+                        },
+                        (err) => {
+                          toast.error(
+                            err.code === err.PERMISSION_DENIED
+                              ? 'Location permission denied — you can still type coordinates manually.'
+                              : 'Could not get your location. Type coordinates manually instead.',
+                          )
+                        },
+                        { enableHighAccuracy: true, timeout: 10000 },
+                      )
+                    }}
+                  >
+                    Use my current location
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const lat = form.getValues('centerLat')
+                      const lng = form.getValues('centerLng')
+                      const url =
+                        Number.isFinite(lat) && Number.isFinite(lng)
+                          ? `https://www.google.com/maps/@${lat},${lng},14z`
+                          : 'https://www.google.com/maps'
+                      window.open(url, '_blank', 'noopener,noreferrer')
+                    }}
+                  >
+                    Find on Google Maps
+                  </Button>
                 </div>
-                <div>
-                  <Label htmlFor="centerLng">Center longitude</Label>
-                  <Input
-                    id="centerLng"
-                    type="number"
-                    step="any"
-                    {...form.register('centerLng', { valueAsNumber: true })}
-                  />
+                <p className="text-xs text-muted-foreground">
+                  Tip: on Google Maps, right-click the spot you want as the center. The first item in the menu shows the latitude and longitude — click it to copy, then paste the two numbers into the boxes below.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="centerLat">Center latitude</Label>
+                    <Input
+                      id="centerLat"
+                      type="number"
+                      step="any"
+                      placeholder="39.7392"
+                      {...form.register('centerLat', { valueAsNumber: true })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="centerLng">Center longitude</Label>
+                    <Input
+                      id="centerLng"
+                      type="number"
+                      step="any"
+                      placeholder="-104.9903"
+                      {...form.register('centerLng', { valueAsNumber: true })}
+                    />
+                  </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Latitude is between -90 and 90; longitude is between -180 and 180.
+                </p>
               </div>
-              <div>
+
+              <div className="space-y-2">
                 <Label htmlFor="radiusMeters">Radius (meters)</Label>
+                <div className="flex flex-wrap gap-2">
+                  {RADIUS_PRESETS.map((preset) => {
+                    const active = currentRadius === preset.meters
+                    return (
+                      <Button
+                        key={preset.meters}
+                        type="button"
+                        size="sm"
+                        variant={active ? 'default' : 'outline'}
+                        onClick={() =>
+                          form.setValue('radiusMeters', preset.meters, {
+                            shouldValidate: true,
+                          })
+                        }
+                      >
+                        {preset.label}
+                      </Button>
+                    )
+                  })}
+                </div>
                 <Input
                   id="radiusMeters"
                   type="number"
+                  placeholder="2500"
                   {...form.register('radiusMeters', { valueAsNumber: true })}
                 />
+                <p className="text-xs text-muted-foreground">
+                  {(() => {
+                    const r = currentRadius
+                    if (!Number.isFinite(r) || r <= 0) return 'Pick a preset above or type a number of meters.'
+                    const km = (r / 1000).toFixed(r >= 1000 ? 1 : 2)
+                    const across = ((r * 2) / 1000).toFixed(r >= 1000 ? 1 : 2)
+                    return `≈ ${km} km from the center in every direction, so your service area is about ${across} km across.`
+                  })()}
+                </p>
               </div>
             </div>
-          )}
+            )
+          })()}
 
           {step === 5 && (
-            <div className="space-y-2">
-              <Label htmlFor="csvText">Paste CSV</Label>
-              <p className="text-xs text-muted-foreground">
-                Headers: name, address, lat, lng — optional city, state, postal_code, category, notes.
-              </p>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label htmlFor="csvText">Paste your locations CSV</Label>
+                <p className="text-xs text-muted-foreground">
+                  Required columns: <span className="font-mono">name</span>, <span className="font-mono">address</span>, and either <span className="font-mono">lat</span>/<span className="font-mono">lng</span> or an address we can geocode. Optional:
+                  <span className="font-mono"> city</span>, <span className="font-mono">state</span>, <span className="font-mono">postal_code</span>, <span className="font-mono">category</span>, <span className="font-mono">notes</span>.
+                </p>
+              </div>
+
+              <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3 text-sm">
+                <p className="text-xs text-muted-foreground">
+                  New to CSVs? Start from the template, or load two sample rows so you can see the format:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      downloadCsvTemplate()
+                      toast.success('Template downloaded — open it in Sheets or Excel.')
+                    }}
+                  >
+                    Download template CSV
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      form.setValue('csvText', CSV_SAMPLE_ROWS, { shouldValidate: true })
+                      toast.success('Sample rows loaded — edit them or paste your own.')
+                    }}
+                  >
+                    Load sample rows
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      form.setValue('csvText', '', { shouldValidate: true })
+                      toast.message('Starting with two sample locations — import your real list from Admin later.')
+                    }}
+                  >
+                    Skip — I&apos;ll add locations later
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tip: open your list in Google Sheets or Excel → File → Download → Comma-separated values (.csv) → open the file in any text editor and paste everything here.
+                </p>
+              </div>
+
               <Textarea
                 id="csvText"
                 rows={8}
                 placeholder={`name,address,lat,lng,category\nCommunity Center,"1200 Market St",39.7392,-104.9903,community`}
                 {...form.register('csvText')}
               />
+
+              {(() => {
+                const text = form.watch('csvText') ?? ''
+                if (!text.trim()) {
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      No CSV pasted — MissionGrid will start you off with two sample locations.
+                    </p>
+                  )
+                }
+                const preview = parseLocationCsvPreview(text)
+                const valid = preview.rows.filter(
+                  (r) => r.data && !r.issues.some((i) => i.severity === 'error') && !r.isDuplicate,
+                ).length
+                const flagged = preview.rows.filter((r) =>
+                  r.issues.some((i) => i.severity === 'error'),
+                ).length
+                const duplicates = preview.rows.filter((r) => r.isDuplicate).length
+                const firstIssues = preview.rows
+                  .flatMap((r) =>
+                    r.issues
+                      .filter((i) => i.severity === 'error')
+                      .map((i) => ({ row: r.rowNumber, message: i.message })),
+                  )
+                  .slice(0, 3)
+                return (
+                  <div className="space-y-2 rounded-md border border-border bg-background p-3 text-sm">
+                    <p className="font-medium text-foreground">Preview</p>
+                    <p className="text-xs text-muted-foreground">
+                      <span className="text-emerald-600 dark:text-emerald-400">{valid} valid</span>
+                      {' · '}
+                      <span className={flagged > 0 ? 'text-destructive' : ''}>{flagged} flagged</span>
+                      {' · '}
+                      {duplicates} duplicate{duplicates === 1 ? '' : 's'}
+                    </p>
+                    {firstIssues.length > 0 && (
+                      <ul className="ml-4 list-disc space-y-1 text-xs text-muted-foreground">
+                        {firstIssues.map((iss, idx) => (
+                          <li key={`${iss.row}-${idx}`}>
+                            <span className="font-medium text-foreground">Row {iss.row}:</span>{' '}
+                            {iss.message}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {preview.errors.length > 0 && (
+                      <p className="text-xs text-destructive">
+                        CSV could not be parsed: {preview.errors[0]}
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           )}
 
           {mode === 'supabase' && step === 6 && inviteUrl && (
-            <div className="space-y-2 text-sm">
-              <p className="font-medium text-foreground">Volunteer invite link</p>
-              <p className="break-all rounded border bg-muted p-2 font-mono text-xs">{inviteUrl}</p>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(inviteUrl)
-                  toast.success('Copied invite link')
-                }}
-              >
-                Copy link
-              </Button>
+            <div className="space-y-4 text-sm">
+              <div className="space-y-2">
+                <p className="font-medium text-foreground">Volunteer invite link</p>
+                <p className="break-all rounded border bg-muted p-2 font-mono text-xs">{inviteUrl}</p>
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(inviteUrl)
+                      toast.success('Copied invite link')
+                    } catch {
+                      toast.error('Clipboard blocked — select the link above and copy it manually.')
+                    }
+                  }}
+                >
+                  Copy invite link
+                </Button>
+              </div>
+
+              <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                <p className="font-medium text-foreground">Share it with volunteers</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(inviteUrl, '_blank', 'noopener,noreferrer')}
+                  >
+                    Open link in new tab
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const orgName = form.getValues('organizationName')?.trim() || 'our team'
+                      const subject = encodeURIComponent(`You're invited to ${orgName}`)
+                      const body = encodeURIComponent(
+                        `Hi,\n\nYou're invited to join ${orgName} on MissionGrid. Tap the link below to set up your account:\n\n${inviteUrl}\n\nThanks!`,
+                      )
+                      window.location.href = `mailto:?subject=${subject}&body=${body}`
+                    }}
+                  >
+                    Share by email
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const orgName = form.getValues('organizationName')?.trim() || 'our team'
+                      const body = encodeURIComponent(`Join ${orgName} on MissionGrid: ${inviteUrl}`)
+                      window.location.href = `sms:?&body=${body}`
+                    }}
+                  >
+                    Share by text
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  &ldquo;Share by text&rdquo; opens your phone&apos;s messages app — works best on iOS / Android.
+                </p>
+              </div>
+
+              <div className="space-y-2 rounded-md border border-border bg-background p-3">
+                <p className="font-medium text-foreground">What volunteers will see</p>
+                <ol className="ml-4 list-decimal space-y-1 text-xs text-muted-foreground">
+                  <li>They tap the link you sent and MissionGrid opens in their browser.</li>
+                  <li>They enter their name and email — no password needed.</li>
+                  <li>They tap <span className="font-medium text-foreground">Join</span> and land on the volunteer home screen, ready to check in locations.</li>
+                </ol>
+                <p className="text-xs text-muted-foreground">
+                  Tip: press <span className="font-medium text-foreground">Open link in new tab</span> above to try the flow yourself before sharing it.
+                </p>
+              </div>
+
               <p className="text-xs text-muted-foreground">
-                Share this link anywhere. Volunteers enter name + email; no password.
+                You can always find this invite link again from Admin settings.
               </p>
             </div>
           )}
