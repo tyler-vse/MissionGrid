@@ -28,6 +28,7 @@ import {
 } from '@/config/runtimeConfig'
 import { CenterPointPicker } from '@/features/setup/CenterPointPicker'
 import { completeSupabaseOrgSetup } from '@/features/setup/completeSupabaseSetup'
+import { PreflightChecklist } from '@/features/setup/preflight/PreflightChecklist'
 import schemaSql from '../../../docs/supabase/schema.sql?raw'
 import { WIZARD_STEP_LABELS } from '@/features/setup/steps/constants'
 import {
@@ -142,6 +143,7 @@ export function SetupWizard() {
   const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
   const [mode, setMode] = useState<'choose' | 'mock' | 'supabase'>('choose')
+  const [preflightDone, setPreflightDone] = useState(false)
   const [supabaseOk, setSupabaseOk] = useState<boolean | null>(null)
   const [supabaseFailReason, setSupabaseFailReason] = useState<
     'schema_missing' | 'auth' | 'network' | 'other' | null
@@ -460,12 +462,34 @@ export function SetupWizard() {
               onClick={() => {
                 setMode('supabase')
                 setStep(0)
+                setPreflightDone(false)
               }}
             >
               Guided setup — Supabase + invite link
             </Button>
           </CardContent>
         </Card>
+      </div>
+    )
+  }
+
+  if (mode === 'supabase' && !preflightDone) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        <div className="mb-8 space-y-3 text-center">
+          <BrandLockup size="md" className="mb-3" />
+          <h1 className="text-2xl font-bold tracking-tight">
+            Set up <AppName />
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {APP_CONFIG.description}
+          </p>
+        </div>
+        <PreflightChecklist
+          orgName={form.watch('organizationName') ?? ''}
+          onContinue={() => setPreflightDone(true)}
+          onBack={() => setMode('choose')}
+        />
       </div>
     )
   }
