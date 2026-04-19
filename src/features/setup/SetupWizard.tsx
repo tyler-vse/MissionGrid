@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { AppName } from '@/components/branding/AppName'
+import { BrandLockup } from '@/components/branding/BrandLockup'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -425,7 +426,8 @@ export function SetupWizard() {
   if (mode === 'choose') {
     return (
       <div className="mx-auto max-w-lg px-4 py-8">
-        <div className="mb-8 space-y-2 text-center">
+        <div className="mb-8 space-y-3 text-center">
+          <BrandLockup size="lg" className="mb-4" />
           <h1 className="text-2xl font-bold tracking-tight">
             Set up <AppName />
           </h1>
@@ -470,7 +472,8 @@ export function SetupWizard() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
-      <div className="mb-8 space-y-2 text-center">
+      <div className="mb-8 space-y-3 text-center">
+        <BrandLockup size="md" className="mb-3" />
         <h1 className="text-2xl font-bold tracking-tight">
           Set up <AppName />
         </h1>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AppName } from '@/components/branding/AppName'
+import { BrandLockup } from '@/components/branding/BrandLockup'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -63,7 +64,8 @@ export function AdminConnectPage() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
-      <div className="mb-6 space-y-2 text-center">
+      <div className="mb-6 space-y-3 text-center">
+        <BrandLockup size="md" className="mb-3" />
         <h1 className="text-2xl font-bold tracking-tight">
           Connect <AppName />
         </h1>

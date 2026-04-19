@@ -1,12 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="96" fill="#1d4ed8"/>
-  <g stroke="#ffffff" stroke-linecap="round" stroke-width="24">
-    <path d="M96 160h320M96 256h320M96 352h320" opacity="0.35"/>
+  <rect width="512" height="512" rx="96" fill="#1E55D6"/>
+  <g stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="12" stroke-linecap="round">
+    <line x1="170" y1="96" x2="170" y2="416"/>
+    <line x1="256" y1="96" x2="256" y2="416"/>
+    <line x1="342" y1="96" x2="342" y2="416"/>
+    <line x1="96" y1="170" x2="416" y2="170"/>
+    <line x1="96" y1="256" x2="416" y2="256"/>
+    <line x1="96" y1="342" x2="416" y2="342"/>
   </g>
-  <g fill="#ffffff">
-    <circle cx="170" cy="160" r="26"/>
-    <circle cx="320" cy="256" r="26"/>
-    <circle cx="210" cy="352" r="26"/>
-  </g>
-  <path d="M170 160 L320 256 L210 352" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M256 64 C174.4 64 108 130.4 108 212 C108 292 256 448 256 448 C256 448 404 292 404 212 C404 130.4 337.6 64 256 64 Z" fill="#FFFFFF"/>
+  <circle cx="256" cy="212" r="48" fill="#25A35A"/>
 </svg>

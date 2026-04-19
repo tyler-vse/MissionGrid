@@ -1,6 +1,7 @@
-import { Download, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AppName } from '@/components/branding/AppName'
+import { Logo } from '@/components/branding/Logo'
 import { Button } from '@/components/ui/button'
 import { APP_CONFIG } from '@/config/app.config'
 
@@ -55,9 +56,7 @@ export function InstallPrompt() {
 
   return (
     <div className="relative flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-sm">
-      <div className="rounded-full bg-primary/10 p-3 text-primary">
-        <Download className="h-5 w-5" />
-      </div>
+      <Logo className="h-11 w-11 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold">
           Install <AppName />
