@@ -1,4 +1,8 @@
 import { APP_CONFIG } from '@/config/app.config'
+import {
+  DEFAULT_PLACE_CATEGORY,
+  type PlaceCategoryId,
+} from '@/domain/models/placeCategory'
 
 /** Persisted per-device org + integration settings (never commit real secrets). */
 export interface RuntimeOrgConfig {
@@ -9,6 +13,8 @@ export interface RuntimeOrgConfig {
   volunteerId: string
   /** Server-validated token for volunteer join RPC */
   inviteToken: string
+  /** Org-level default category for "Find more places" recommendations */
+  placeCategoryDefault?: PlaceCategoryId
 }
 
 export const EMPTY_RUNTIME_CONFIG: RuntimeOrgConfig = {
@@ -18,6 +24,7 @@ export const EMPTY_RUNTIME_CONFIG: RuntimeOrgConfig = {
   organizationId: '',
   volunteerId: '',
   inviteToken: '',
+  placeCategoryDefault: DEFAULT_PLACE_CATEGORY,
 }
 
 export interface InvitePayloadV1 {
@@ -182,6 +189,8 @@ export function mergeRuntimeWithEnv(
     organizationId: stored.organizationId,
     volunteerId: stored.volunteerId,
     inviteToken: stored.inviteToken,
+    placeCategoryDefault:
+      stored.placeCategoryDefault || DEFAULT_PLACE_CATEGORY,
   }
 }
 

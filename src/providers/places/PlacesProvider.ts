@@ -16,6 +16,10 @@ export interface PlacesProvider {
   autocomplete(input: string): Promise<PlacePrediction[]>
   searchText(
     query: string,
-    options?: { bounds?: { south: number; west: number; north: number; east: number } },
+    options?: {
+      bounds?: { south: number; west: number; north: number; east: number }
+      type?: string
+      keyword?: string
+    },
   ): Promise<PlaceSearchResult[]>
 }

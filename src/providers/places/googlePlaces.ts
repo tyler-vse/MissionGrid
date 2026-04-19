@@ -25,18 +25,27 @@ export function createGooglePlaces(apiKey: string): PlacesProvider {
       )
     },
     async searchText(query, options) {
-      if (!query.trim()) return []
+      const composedQuery = [query.trim(), options?.keyword?.trim()]
+        .filter((part): part is string => !!part)
+        .join(' ')
+      if (!composedQuery) return []
       await loadGoogleMaps(apiKey)
       const el = document.createElement('div')
       const svc = new google.maps.places.PlacesService(el)
       const req: google.maps.places.TextSearchRequest = {
-        query: query.trim(),
+        query: composedQuery,
       }
       if (options?.bounds) {
         req.bounds = new google.maps.LatLngBounds(
           { lat: options.bounds.south, lng: options.bounds.west },
           { lat: options.bounds.north, lng: options.bounds.east },
         )
+      }
+      if (options?.type) {
+        // `type` is supported on TextSearchRequest at runtime; older @types
+        // definitions may omit it, so widen the request to attach it safely.
+        ;(req as google.maps.places.TextSearchRequest & { type?: string }).type =
+          options.type
       }
       const results = await new Promise<google.maps.places.PlaceResult[]>(
         (resolve, reject) => {

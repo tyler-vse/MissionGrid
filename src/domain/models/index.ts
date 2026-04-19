@@ -3,6 +3,13 @@ export type { AppConfiguration } from './appConfiguration'
 export type { Location, LocationSource, OpenHoursHint } from './location'
 export type { LocationEvent } from './locationEvent'
 export type { Organization } from './organization'
+export type { PlaceCategoryId, PlaceCategoryPreset } from './placeCategory'
+export {
+  PLACE_CATEGORY_PRESETS,
+  PLACE_CATEGORY_ORDER,
+  DEFAULT_PLACE_CATEGORY,
+  isPlaceCategoryId,
+} from './placeCategory'
 export type { RouteSuggestion } from './routeSuggestion'
 export type { ServiceArea, GeoPolygon } from './serviceArea'
 export type { SuggestedPlace } from './suggestedPlace'

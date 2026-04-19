@@ -15,14 +15,17 @@ export const mockPlaces: PlacesProvider = {
     ]
     return p
   },
-  async searchText(query) {
-    const q = query.trim()
-    if (!q) return []
+  async searchText(query, options) {
+    const composed = [query.trim(), options?.keyword?.trim()]
+      .filter((part): part is string => !!part)
+      .join(' ')
+    if (!composed) return []
+    const typeSuffix = options?.type ? ` [${options.type}]` : ''
     const r: PlaceSearchResult[] = [
       {
         placeId: 'mock_search',
-        name: q,
-        formattedAddress: `${q} — connect Google Places for real results`,
+        name: `${composed}${typeSuffix}`,
+        formattedAddress: `${composed} — connect Google Places for real results`,
         location: { lat: 39.7392, lng: -104.9903 },
       },
     ]

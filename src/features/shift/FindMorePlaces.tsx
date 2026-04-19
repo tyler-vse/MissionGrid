@@ -9,14 +9,22 @@ import { InlineAlert } from '@/components/ui/inline-alert'
 import { isGoogleMapsConfigured, mergeRuntimeWithEnv } from '@/config/runtimeConfig'
 import { filterLocationsByArea } from '@/domain/services/areaFilter'
 import type { Location } from '@/domain/models/location'
+import {
+  DEFAULT_PLACE_CATEGORY,
+  PLACE_CATEGORY_ORDER,
+  PLACE_CATEGORY_PRESETS,
+  type PlaceCategoryId,
+} from '@/domain/models/placeCategory'
 import type { PlaceSearchResult } from '@/providers/places/PlacesProvider'
 import { useLocations } from '@/data/useLocations'
 import { useServiceAreas } from '@/data/useServiceAreas'
+import { useActiveVolunteer } from '@/data/useVolunteer'
 import { useRegistry } from '@/providers/useRegistry'
 import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 import { useShiftStore } from '@/store/shiftStore'
 import type { LatLng } from '@/lib/distance'
 import { haversineMeters } from '@/lib/distance'
+import { cn } from '@/lib/utils'
 
 function normalize(s: string): string {
   return s
@@ -66,9 +74,23 @@ export function FindMorePlaces({
   )
   const placesAvailable = isGoogleMapsConfigured(mergeRuntimeWithEnv(runtime))
 
+  const orgDefaultCategory =
+    useRuntimeConfigStore((s) => s.placeCategoryDefault) ??
+    DEFAULT_PLACE_CATEGORY
+  const { volunteer } = useActiveVolunteer()
+  const isAdmin = Boolean(volunteer?.isAdmin)
+
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([])
+  const [selectedCategory, setSelectedCategory] = useState<PlaceCategoryId>(
+    orgDefaultCategory,
+  )
+
+  const activeCategory: PlaceCategoryId = isAdmin
+    ? selectedCategory
+    : orgDefaultCategory
+  const activePreset = PLACE_CATEGORY_PRESETS[activeCategory]
 
   const internalCandidates = useMemo(() => {
     const area = serviceAreas[0]
@@ -91,14 +113,21 @@ export function FindMorePlaces({
 
   const runPlaceSearch = async () => {
     if (!placesAvailable) return
-    if (query.trim().length < 2) {
+    const trimmed = query.trim()
+    const hasCategoryAnchor = Boolean(
+      activePreset.keyword || activePreset.googleType,
+    )
+    if (trimmed.length < 2 && !hasCategoryAnchor) {
       toast.error('Enter something to search for')
       return
     }
     setSearching(true)
     try {
       const area = serviceAreas[0]
-      const results = await registry.places.searchText(query.trim(), {
+      const composedQuery = [trimmed, activePreset.keyword]
+        .filter((part): part is string => !!part)
+        .join(' ')
+      const results = await registry.places.searchText(composedQuery, {
         bounds: area
           ? {
               south: area.centerLat - 0.03,
@@ -107,6 +136,8 @@ export function FindMorePlaces({
               east: area.centerLng + 0.03,
             }
           : undefined,
+        type: activePreset.googleType,
+        keyword: activePreset.keyword,
       })
       const filtered = results.filter((r) => !isDuplicate(r, locations))
       setPlaceResults(filtered.slice(0, 8))
@@ -188,6 +219,40 @@ export function FindMorePlaces({
           <h3 className="text-sm font-semibold text-foreground">
             Search for more
           </h3>
+          {isAdmin && (
+            <div
+              role="radiogroup"
+              aria-label="Recommendation category"
+              className="flex flex-wrap gap-1.5"
+            >
+              {PLACE_CATEGORY_ORDER.map((id) => {
+                const preset = PLACE_CATEGORY_PRESETS[id]
+                const active = id === selectedCategory
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setSelectedCategory(id)}
+                    className={cn(
+                      'inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors',
+                      active
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-input bg-background text-foreground hover:bg-muted',
+                    )}
+                  >
+                    {preset.label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {isAdmin && activeCategory !== 'all' && (
+            <p className="text-xs text-muted-foreground">
+              Filtering recommendations: {activePreset.label}
+            </p>
+          )}
           <div className="flex gap-2">
             <input
               type="text"

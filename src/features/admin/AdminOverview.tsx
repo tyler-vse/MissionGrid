@@ -19,12 +19,19 @@ import { InlineAlert } from '@/components/ui/inline-alert'
 import { SectionHeader } from '@/components/ui/section-header'
 import { Stat } from '@/components/ui/stat'
 import type { ActivityStatus } from '@/domain/models/activityStatus'
+import {
+  DEFAULT_PLACE_CATEGORY,
+  PLACE_CATEGORY_ORDER,
+  PLACE_CATEGORY_PRESETS,
+  type PlaceCategoryId,
+} from '@/domain/models/placeCategory'
 import { useOrganization } from '@/data/useOrganization'
 import { useProgress } from '@/data/useProgress'
 import { useRecentEvents } from '@/data/useRecentEvents'
 import { useSuggestedPlaces } from '@/data/useSuggestedPlaces'
 import { useMockBackendStore } from '@/store/mockBackendStore'
 import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
+import { cn } from '@/lib/utils'
 
 function eventIcon(to: ActivityStatus) {
   switch (to) {
@@ -75,6 +82,17 @@ export function AdminOverview() {
   const { data: progress } = useProgress()
   const { data: events = [] } = useRecentEvents(15)
   const { data: suggested = [] } = useSuggestedPlaces()
+  const placeCategoryDefault =
+    useRuntimeConfigStore((s) => s.placeCategoryDefault) ??
+    DEFAULT_PLACE_CATEGORY
+  const patchRuntime = useRuntimeConfigStore((s) => s.patch)
+
+  const setPlaceCategoryDefault = (next: PlaceCategoryId) => {
+    patchRuntime({ placeCategoryDefault: next })
+    toast.success(
+      `Volunteers will now see ${PLACE_CATEGORY_PRESETS[next].label.toLowerCase()} recommendations`,
+    )
+  }
 
   const pendingReviewCount = suggested.filter(
     (p) => p.status === 'pending_review',
@@ -189,6 +207,51 @@ export function AdminOverview() {
           </div>
         </Link>
       </div>
+
+      <section
+        className="rounded-2xl border bg-card p-5 shadow-sm"
+        aria-labelledby="recommendations-heading"
+      >
+        <div className="mb-3">
+          <h2
+            id="recommendations-heading"
+            className="text-base font-bold tracking-tight"
+          >
+            Recommended places
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Default category for &ldquo;Find more places&rdquo; during shifts.
+            Volunteers see this automatically; admins can override per search.
+          </p>
+        </div>
+        <div
+          role="radiogroup"
+          aria-label="Default place category"
+          className="flex flex-wrap gap-2"
+        >
+          {PLACE_CATEGORY_ORDER.map((id) => {
+            const preset = PLACE_CATEGORY_PRESETS[id]
+            const active = id === placeCategoryDefault
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setPlaceCategoryDefault(id)}
+                className={cn(
+                  'inline-flex h-9 items-center rounded-full border px-3 text-sm font-medium transition-colors',
+                  active
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-input bg-background text-foreground hover:bg-muted',
+                )}
+              >
+                {preset.label}
+              </button>
+            )
+          })}
+        </div>
+      </section>
 
       <section
         className="rounded-2xl border bg-card p-5 shadow-sm"

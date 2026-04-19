@@ -62,6 +62,7 @@ export const useRuntimeConfigStore = create<RuntimeConfigState>()(
         organizationId: s.organizationId,
         volunteerId: s.volunteerId,
         inviteToken: s.inviteToken,
+        placeCategoryDefault: s.placeCategoryDefault,
       }),
     },
   ),
@@ -78,5 +79,6 @@ export function getEffectiveRuntimeConfigFromStore(): ReturnType<
     organizationId: s.organizationId,
     volunteerId: s.volunteerId,
     inviteToken: s.inviteToken,
+    placeCategoryDefault: s.placeCategoryDefault,
   })
 }
