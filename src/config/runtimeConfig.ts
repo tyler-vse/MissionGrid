@@ -111,12 +111,24 @@ export function isGoogleMapsConfigured(cfg: EffectiveRuntimeConfig): boolean {
   return Boolean(cfg.googleMapsApiKey)
 }
 
+export type SupabaseConnectionTestResult =
+  | { ok: true }
+  | {
+      ok: false
+      reason: 'schema_missing' | 'auth' | 'network' | 'other'
+      message: string
+    }
+
 export async function testSupabaseConnection(
   url: string,
   anonKey: string,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<SupabaseConnectionTestResult> {
   if (!url || !anonKey) {
-    return { ok: false, message: 'URL and anon key are required.' }
+    return {
+      ok: false,
+      reason: 'other',
+      message: 'URL and anon key are required.',
+    }
   }
   try {
     const { createClient } = await import('@supabase/supabase-js')
@@ -124,22 +136,45 @@ export async function testSupabaseConnection(
       auth: { persistSession: false, autoRefreshToken: false },
     })
     const { error } = await supabase.from('organizations').select('id').limit(1)
-    if (error && error.code !== 'PGRST116' && !error.message.includes('relation')) {
-      if (error.message.includes('JWT')) {
-        return { ok: false, message: 'Invalid anon key or URL.' }
-      }
-      if (error.message.includes('does not exist')) {
-        return {
-          ok: false,
-          message:
-            'Connected but schema missing — run docs/supabase/schema.sql in the SQL editor.',
-        }
-      }
-      return { ok: false, message: error.message }
+    if (!error || error.code === 'PGRST116') {
+      return { ok: true }
     }
-    return { ok: true }
+
+    const msg = error.message ?? ''
+    const code = error.code ?? ''
+
+    if (
+      code === 'PGRST205' ||
+      /schema cache/i.test(msg) ||
+      /could not find the table/i.test(msg) ||
+      /does not exist/i.test(msg) ||
+      /relation .* does not exist/i.test(msg)
+    ) {
+      return {
+        ok: false,
+        reason: 'schema_missing',
+        message:
+          'Connected, but the MissionGrid tables are missing. Run docs/supabase/schema.sql in the SQL editor.',
+      }
+    }
+
+    if (/JWT|Invalid API key|apikey/i.test(msg)) {
+      return {
+        ok: false,
+        reason: 'auth',
+        message: 'Invalid anon key or URL.',
+      }
+    }
+
+    return { ok: false, reason: 'other', message: msg }
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : String(e) }
+    const msg = e instanceof Error ? e.message : String(e)
+    const isNetwork = /fetch|network|failed to fetch/i.test(msg)
+    return {
+      ok: false,
+      reason: isNetwork ? 'network' : 'other',
+      message: msg,
+    }
   }
 }
 

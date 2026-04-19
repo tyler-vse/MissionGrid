@@ -33,7 +33,17 @@ export async function completeSupabaseOrgSetup(input: {
     .insert({ name: input.orgName, slug: input.orgSlug })
     .select('id')
     .single()
-  if (orgErr) throw orgErr
+  if (orgErr) {
+    if (
+      orgErr.code === 'PGRST205' ||
+      /schema cache|does not exist|could not find the table/i.test(orgErr.message ?? '')
+    ) {
+      throw new Error(
+        'Supabase schema not found. Go back to step 2 and run docs/supabase/schema.sql in your project\u2019s SQL editor, then try again.',
+      )
+    }
+    throw orgErr
+  }
 
   const inviteToken = `inv_${crypto.randomUUID().replace(/-/g, '')}`
   const { error: invErr } = await supabase.from('org_invites').insert({

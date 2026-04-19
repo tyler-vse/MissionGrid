@@ -25,6 +25,7 @@ import {
   testSupabaseConnection,
 } from '@/config/runtimeConfig'
 import { completeSupabaseOrgSetup } from '@/features/setup/completeSupabaseSetup'
+import schemaSql from '../../../docs/supabase/schema.sql?raw'
 import { WIZARD_STEP_LABELS } from '@/features/setup/steps/constants'
 import {
   parseLocationCsv,
@@ -55,12 +56,28 @@ const wizardSchema = z.object({
 
 type WizardForm = z.infer<typeof wizardSchema>
 
+function deriveSupabaseSqlEditorUrl(projectUrl: string): string {
+  const fallback = 'https://supabase.com/dashboard'
+  try {
+    const u = new URL(projectUrl)
+    const match = u.hostname.match(/^([a-z0-9-]+)\.supabase\.(co|in)$/i)
+    const ref = match?.[1]
+    if (!ref) return fallback
+    return `https://supabase.com/dashboard/project/${ref}/sql/new`
+  } catch {
+    return fallback
+  }
+}
+
 export function SetupWizard() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
   const [mode, setMode] = useState<'choose' | 'mock' | 'supabase'>('choose')
   const [supabaseOk, setSupabaseOk] = useState<boolean | null>(null)
+  const [supabaseFailReason, setSupabaseFailReason] = useState<
+    'schema_missing' | 'auth' | 'network' | 'other' | null
+  >(null)
   const [googleOk, setGoogleOk] = useState<boolean | null>(null)
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -437,11 +454,30 @@ export function SetupWizard() {
             <div className="space-y-3">
               <div>
                 <Label htmlFor="sbUrl">Supabase project URL</Label>
-                <Input id="sbUrl" {...form.register('supabaseUrl')} placeholder="https://xxx.supabase.co" />
+                <Input
+                  id="sbUrl"
+                  {...form.register('supabaseUrl', {
+                    onChange: () => {
+                      setSupabaseOk(null)
+                      setSupabaseFailReason(null)
+                    },
+                  })}
+                  placeholder="https://xxx.supabase.co"
+                />
               </div>
               <div>
                 <Label htmlFor="sbKey">Supabase anon public key</Label>
-                <Input id="sbKey" {...form.register('supabaseAnonKey')} type="password" autoComplete="off" />
+                <Input
+                  id="sbKey"
+                  type="password"
+                  autoComplete="off"
+                  {...form.register('supabaseAnonKey', {
+                    onChange: () => {
+                      setSupabaseOk(null)
+                      setSupabaseFailReason(null)
+                    },
+                  })}
+                />
               </div>
               <Button
                 type="button"
@@ -451,6 +487,7 @@ export function SetupWizard() {
                   const k = form.getValues('supabaseAnonKey')?.trim() ?? ''
                   const r = await testSupabaseConnection(u, k)
                   setSupabaseOk(r.ok)
+                  setSupabaseFailReason(r.ok ? null : r.reason)
                   toast[r.ok ? 'success' : 'error'](
                     r.ok ? 'Connection OK' : r.message,
                   )
@@ -458,9 +495,68 @@ export function SetupWizard() {
               >
                 Test Supabase connection
               </Button>
-              {supabaseOk === false && (
+
+              {supabaseFailReason === 'schema_missing' && (
+                <div className="space-y-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground">
+                      Supabase project is reachable, but MissionGrid tables are missing.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Run the schema SQL once in your project&apos;s SQL editor, then
+                      re-test the connection.
+                    </p>
+                  </div>
+                  <ol className="ml-4 list-decimal space-y-1 text-xs text-muted-foreground">
+                    <li>Click <span className="font-medium text-foreground">Copy schema SQL</span>.</li>
+                    <li>Click <span className="font-medium text-foreground">Open SQL Editor</span> (opens your Supabase dashboard).</li>
+                    <li>Paste the SQL and press <span className="font-medium text-foreground">Run</span>.</li>
+                    <li>Come back here and click <span className="font-medium text-foreground">Test Supabase connection</span> again.</li>
+                  </ol>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(schemaSql)
+                          toast.success('Schema SQL copied to clipboard')
+                        } catch {
+                          toast.error(
+                            'Clipboard blocked — select and copy the SQL from docs/supabase/schema.sql manually.',
+                          )
+                        }
+                      }}
+                    >
+                      Copy schema SQL
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const projectUrl = form.getValues('supabaseUrl')?.trim() ?? ''
+                        const target = deriveSupabaseSqlEditorUrl(projectUrl)
+                        window.open(target, '_blank', 'noopener,noreferrer')
+                      }}
+                    >
+                      Open SQL Editor
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {supabaseOk === false && supabaseFailReason !== 'schema_missing' && (
                 <p className="text-xs text-muted-foreground">
-                  Run <code className="rounded bg-muted px-1">docs/supabase/schema.sql</code> in the SQL editor if tables are missing.
+                  Double-check the project URL and anon public key from Supabase
+                  Settings → API.
+                </p>
+              )}
+
+              {supabaseOk !== true && (
+                <p className="text-xs text-muted-foreground">
+                  Pass the connection test to continue.
                 </p>
               )}
             </div>
@@ -618,7 +714,17 @@ export function SetupWizard() {
                 <Link to="/volunteer">Go to volunteer home</Link>
               </Button>
             ) : (
-              <Button type="button" className="flex-1 sm:flex-none" onClick={next}>
+              <Button
+                type="button"
+                className="flex-1 sm:flex-none"
+                onClick={next}
+                disabled={mode === 'supabase' && step === 1 && supabaseOk !== true}
+                title={
+                  mode === 'supabase' && step === 1 && supabaseOk !== true
+                    ? 'Pass the connection test first'
+                    : undefined
+                }
+              >
                 Next
               </Button>
             )}

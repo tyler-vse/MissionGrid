@@ -39,6 +39,7 @@ After setup, the wizard shows an invite URL (`/join#mg-invite-v1...`). Share it 
 | Issue | Fix |
 |-------|-----|
 | “relation does not exist” | Run `schema.sql`. |
+| “Could not find the table … in the schema cache” (PostgREST `PGRST205`) | Run `schema.sql` in the Supabase SQL editor. Wizard step 2 offers a one-click **Copy schema SQL** + **Open SQL Editor** helper. |
 | Realtime not updating | Enable replication for `locations`. |
 | `join_volunteer` fails | Ensure `org_invites` has a row for your `organization_id` and `token` (wizard creates this). |
 | JWT errors | Double-check URL and anon key; no service role key in the client. |
