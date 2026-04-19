@@ -6,6 +6,14 @@ Volunteer-friendly, mobile-first **field coordination** for nonprofits and stree
 
 > **Rebrand in one file:** product name, slug, tagline, routes, and storage key live in [`src/config/app.config.ts`](src/config/app.config.ts) (`APP_CONFIG`). Avoid hardcoding the product name elsewhere; import `APP_CONFIG` or branding components under `src/components/branding/`.
 
+<p align="center">
+  <a href="docs/screenshots/landing-hero.png">
+    <img src="docs/screenshots/landing-hero.png" alt="MissionGrid landing page hero — Coordinate field coverage without duplicate effort" width="820" />
+  </a>
+</p>
+
+The public landing page lives at `/` and scrolls through the pitch, how it works, features, personas, open-source / BYOK, and FAQ. Deploy it to Vercel as-is — everything after `Get started` funnels into the setup wizard, and existing users land back in the app.
+
 ## Deploy
 
 MissionGrid is a purely client-side SPA, so a single public build can serve every organization — each one brings their own Supabase + Google keys through `/setup` and those stay in their browser's `localStorage`. No server secrets are ever deployed.
@@ -16,7 +24,7 @@ MissionGrid is a purely client-side SPA, so a single public build can serve ever
 
 One-time steps after clicking Deploy (or importing the repo manually in Vercel):
 
-1. Accept the detected **Vite** framework preset — [`vercel.json`](vercel.json) overrides the install command to use `--legacy-peer-deps` and wires up SPA rewrites so `/setup`, `/join`, `/volunteer`, `/shift`, and `/admin/*` work on direct load and refresh.
+1. Accept the detected **Vite** framework preset — [`vercel.json`](vercel.json) overrides the install command to use `--legacy-peer-deps` and wires up SPA rewrites so `/`, `/setup`, `/join`, `/volunteer`, `/shift`, and `/admin/*` all work on direct load and refresh.
 2. Leave **Environment Variables** empty for a clean public deploy. Orgs paste their own keys at `/setup` — you never hold their secrets.
 3. Hit **Deploy**. First build is ~1–2 minutes. You'll get a `your-project.vercel.app` URL immediately; a custom domain can be attached later under **Project → Settings → Domains**.
 
@@ -37,16 +45,14 @@ Any static host works — Netlify, Cloudflare Pages, GitHub Pages (the last one 
 
 ## Screens
 
-Drop real PNGs into [`docs/screenshots/`](docs/screenshots/) to replace the placeholders below.
+Captures come from the built-in **Try sample data** mode — no Supabase or Google keys needed to reproduce any of these locally.
 
 | | |
 |---|---|
-| ![Volunteer home](https://placehold.co/390x844?text=Volunteer+Home) | ![Shift view](https://placehold.co/390x844?text=Shift+View) |
-| Volunteer home — pick a time window and start a shift | Shift view — Navigate / Claim / Mark Complete / Skip |
-| ![Places list + map](https://placehold.co/390x844?text=Places+Map) | ![Progress thermometer](https://placehold.co/390x844?text=Progress) |
-| Map/List toggle with service-area overlay | Progress thermometer with 25/50/75/100% milestones |
-| ![Admin overview](https://placehold.co/780x450?text=Admin+Overview) | ![Review queue](https://placehold.co/780x450?text=Review+Queue) |
-| Admin overview with live activity feed | Suggested-places review queue |
+| <img src="docs/screenshots/volunteer-home.png" alt="Volunteer home" width="340" /> | <img src="docs/screenshots/shift-view.png" alt="Shift view" width="340" /> |
+| **Volunteer home** — pick a time window (10 / 20 / 30 / 60 min) and start a shift. Team-progress card shows the org-wide thermometer and open/claimed/done counts. | **Shift view** — numbered route stops with Navigate / Claim / Complete / Skip, a sticky timer, and "have more time" chips at the bottom to pull in extra nearby places. |
+| <img src="docs/screenshots/locations-list.png" alt="Places list" width="340" /> | <img src="docs/screenshots/progress.png" alt="Progress thermometer" width="340" /> |
+| **Places** — List / Map toggle, full-text search, and status filters (All / Open / Claimed / Done / Review / Skipped) with inline Navigate / Claim / Complete / Skip actions on every card. | **Progress** — org-wide thermometer with 25 / 50 / 75 / 100% milestones, per-status breakdown, and per-service-area coverage rows. |
 
 ## Quickstart
 
@@ -59,6 +65,7 @@ Open the URL Vite prints (usually `http://localhost:5173`).
 
 | Route | Purpose |
 |-------|---------|
+| `/` | Public landing page — hero, how it works, features, personas, open-source / BYOK, FAQ |
 | `/setup` | First-run wizard: mock org, or Supabase + Google + CSV + **volunteer invite link** |
 | `/join#…` | Volunteers open the link from the coordinator; name + email signup (no password) |
 | `/volunteer` | Home — pick a time window, start a shift |
@@ -75,7 +82,7 @@ Scripts: `npm run build`, `npm run preview`, `npm run typecheck`, `npm run lint`
 
 A 10-minute end-to-end run a new coordinator can follow:
 
-1. **Clone, install, run** the quickstart above, then visit `/setup`.
+1. **Clone, install, run** the quickstart above. Open the landing page at `/` for the pitch, then click **Get started** to drop into `/setup`.
 2. On the wizard, pick **Try sample data** if you just want to explore. The demo loads ~60 realistic stops (community centers, food pantries, clinics, faith spaces, transit hubs) so every screen shows off.
 3. For a real org, pick **Guided setup — Supabase + invite link** and:
    - Create a Supabase project → run [`docs/supabase/schema.sql`](docs/supabase/schema.sql) in the SQL editor.

@@ -7,6 +7,7 @@ import { Features } from './sections/Features'
 import { Hero } from './sections/Hero'
 import { HowItWorks } from './sections/HowItWorks'
 import { OpenSource } from './sections/OpenSource'
+import { Preview } from './sections/Preview'
 import { WhoItsFor } from './sections/WhoItsFor'
 
 export function LandingPage() {
@@ -29,6 +30,7 @@ export function LandingPage() {
           secondaryCtaTo={secondaryCtaTo}
         />
         <HowItWorks />
+        <Preview />
         <Features />
         <WhoItsFor />
         <OpenSource />

@@ -10,9 +10,9 @@ type LandingNavProps = {
 
 const NAV_LINKS: Array<{ href: string; label: string }> = [
   { href: '#how-it-works', label: 'How it works' },
+  { href: '#preview', label: 'Preview' },
   { href: '#features', label: 'Features' },
   { href: '#who-its-for', label: 'Who it’s for' },
-  { href: '#open-source', label: 'Open source' },
   { href: '#faq', label: 'FAQ' },
 ]
 
