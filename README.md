@@ -7,8 +7,8 @@ Volunteer-friendly, mobile-first **field coordination** for nonprofits and stree
 > **Rebrand in one file:** product name, slug, tagline, routes, and storage key live in [`src/config/app.config.ts`](src/config/app.config.ts) (`APP_CONFIG`). Avoid hardcoding the product name elsewhere; import `APP_CONFIG` or branding components under `src/components/branding/`.
 
 <p align="center">
-  <a href="docs/screenshots/landing-hero.png">
-    <img src="docs/screenshots/landing-hero.png" alt="MissionGrid landing page hero — Coordinate field coverage without duplicate effort" width="820" />
+  <a href="src/assets/screenshots/landing-hero.png">
+    <img src="src/assets/screenshots/landing-hero.png" alt="MissionGrid landing page hero — Coordinate field coverage without duplicate effort" width="820" />
   </a>
 </p>
 
@@ -49,9 +49,9 @@ Captures come from the built-in **Try sample data** mode — no Supabase or Goog
 
 | | |
 |---|---|
-| <img src="docs/screenshots/volunteer-home.png" alt="Volunteer home" width="340" /> | <img src="docs/screenshots/shift-view.png" alt="Shift view" width="340" /> |
+| <img src="src/assets/screenshots/volunteer-home.png" alt="Volunteer home" width="340" /> | <img src="src/assets/screenshots/shift-view.png" alt="Shift view" width="340" /> |
 | **Volunteer home** — pick a time window (10 / 20 / 30 / 60 min) and start a shift. Team-progress card shows the org-wide thermometer and open/claimed/done counts. | **Shift view** — numbered route stops with Navigate / Claim / Complete / Skip, a sticky timer, and "have more time" chips at the bottom to pull in extra nearby places. |
-| <img src="docs/screenshots/locations-list.png" alt="Places list" width="340" /> | <img src="docs/screenshots/progress.png" alt="Progress thermometer" width="340" /> |
+| <img src="src/assets/screenshots/locations-list.png" alt="Places list" width="340" /> | <img src="src/assets/screenshots/progress.png" alt="Progress thermometer" width="340" /> |
 | **Places** — List / Map toggle, full-text search, and status filters (All / Open / Claimed / Done / Review / Skipped) with inline Navigate / Claim / Complete / Skip actions on every card. | **Progress** — org-wide thermometer with 25 / 50 / 75 / 100% milestones, per-status breakdown, and per-service-area coverage rows. |
 
 ## Quickstart

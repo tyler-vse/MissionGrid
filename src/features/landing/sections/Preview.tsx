@@ -1,7 +1,7 @@
-import volunteerHome from '../../../../docs/screenshots/volunteer-home.png'
-import shiftView from '../../../../docs/screenshots/shift-view.png'
-import locationsList from '../../../../docs/screenshots/locations-list.png'
-import progress from '../../../../docs/screenshots/progress.png'
+import volunteerHome from '@/assets/screenshots/volunteer-home.png'
+import shiftView from '@/assets/screenshots/shift-view.png'
+import locationsList from '@/assets/screenshots/locations-list.png'
+import progress from '@/assets/screenshots/progress.png'
 
 type Shot = {
   src: string
