@@ -248,7 +248,9 @@ function MapClickPicker({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
-  const markerRef = useRef<google.maps.Marker | null>(null)
+  const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(
+    null,
+  )
   const circleRef = useRef<google.maps.Circle | null>(null)
   const clickListenerRef = useRef<google.maps.MapsEventListener | null>(null)
   const dragListenerRef = useRef<google.maps.MapsEventListener | null>(null)
@@ -273,6 +275,7 @@ function MapClickPicker({
         const map = new google.maps.Map(containerRef.current, {
           center,
           zoom: 13,
+          mapId: 'DEMO_MAP_ID',
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
@@ -281,10 +284,10 @@ function MapClickPicker({
         })
         mapRef.current = map
 
-        const marker = new google.maps.Marker({
+        const marker = new google.maps.marker.AdvancedMarkerElement({
           map,
           position: center,
-          draggable: true,
+          gmpDraggable: true,
         })
         markerRef.current = marker
 
@@ -299,11 +302,13 @@ function MapClickPicker({
           },
         )
         dragListenerRef.current = marker.addListener('dragend', () => {
-          const pos = marker.getPosition()
+          const pos = marker.position
           if (!pos) return
+          const lat = typeof pos.lat === 'function' ? pos.lat() : pos.lat
+          const lng = typeof pos.lng === 'function' ? pos.lng() : pos.lng
           onChangeRef.current({
-            lat: Number(pos.lat().toFixed(6)),
-            lng: Number(pos.lng().toFixed(6)),
+            lat: Number(lat.toFixed(6)),
+            lng: Number(lng.toFixed(6)),
           })
         })
 
@@ -318,7 +323,7 @@ function MapClickPicker({
       clickListenerRef.current?.remove()
       dragListenerRef.current?.remove()
       if (markerRef.current) {
-        markerRef.current.setMap(null)
+        markerRef.current.map = null
         markerRef.current = null
       }
       if (circleRef.current) {
@@ -335,7 +340,7 @@ function MapClickPicker({
     if (!map || !marker) return
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
     const pos = { lat, lng }
-    marker.setPosition(pos)
+    marker.position = pos
     map.panTo(pos)
   }, [lat, lng])
 

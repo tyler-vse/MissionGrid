@@ -2,7 +2,12 @@ import { Loader } from '@googlemaps/js-api-loader'
 
 const loadPromises = new Map<string, Promise<typeof google>>()
 
-export type GoogleMapsLibrary = 'maps' | 'places' | 'geometry' | 'drawing'
+export type GoogleMapsLibrary =
+  | 'maps'
+  | 'places'
+  | 'geometry'
+  | 'drawing'
+  | 'marker'
 
 export function loadGoogleMaps(
   apiKey: string,
@@ -11,6 +16,7 @@ export function loadGoogleMaps(
     'places',
     'geometry',
     'drawing',
+    'marker',
   ],
 ): Promise<typeof google> {
   if (!apiKey) {

@@ -13,6 +13,21 @@ const markerColors: Record<ActivityStatus, string> = {
   pending_review: '#d97706',
 }
 
+function createCircleContent(color: string, selected: boolean): HTMLElement {
+  const el = document.createElement('div')
+  const size = selected ? 20 : 14
+  el.style.cssText = [
+    `width:${size}px`,
+    `height:${size}px`,
+    'border-radius:50%',
+    `background:${color}`,
+    'border:2px solid #fff',
+    'box-shadow:0 1px 2px rgba(0,0,0,0.25)',
+    'cursor:pointer',
+  ].join(';')
+  return el
+}
+
 function GoogleMapView({
   apiKey,
   locations,
@@ -24,7 +39,7 @@ function GoogleMapView({
 }: MapRenderProps & { apiKey: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
-  const markersRef = useRef<google.maps.Marker[]>([])
+  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([])
   const circleRef = useRef<google.maps.Circle | null>(null)
   const polygonRef = useRef<google.maps.Polygon | null>(null)
 
@@ -38,6 +53,7 @@ function GoogleMapView({
         const map = new google.maps.Map(ref.current, {
           center,
           zoom: 13,
+          mapId: 'DEMO_MAP_ID',
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
@@ -63,21 +79,18 @@ function GoogleMapView({
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    for (const m of markersRef.current) m.setMap(null)
+    for (const m of markersRef.current) m.map = null
     markersRef.current = []
     for (const loc of locations) {
-      const marker = new google.maps.Marker({
+      const marker = new google.maps.marker.AdvancedMarkerElement({
         map,
         position: { lat: loc.lat, lng: loc.lng },
         title: loc.name,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: loc.id === selectedId ? 10 : 7,
-          fillColor: markerColors[loc.status] ?? '#888',
-          fillOpacity: 1,
-          strokeColor: '#fff',
-          strokeWeight: 2,
-        },
+        content: createCircleContent(
+          markerColors[loc.status] ?? '#888',
+          loc.id === selectedId,
+        ),
+        gmpClickable: true,
       })
       marker.addListener('click', () => {
         onSelectLocation?.(loc.id)
