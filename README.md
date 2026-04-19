@@ -6,6 +6,35 @@ Volunteer-friendly, mobile-first **field coordination** for nonprofits and stree
 
 > **Rebrand in one file:** product name, slug, tagline, routes, and storage key live in [`src/config/app.config.ts`](src/config/app.config.ts) (`APP_CONFIG`). Avoid hardcoding the product name elsewhere; import `APP_CONFIG` or branding components under `src/components/branding/`.
 
+## Deploy
+
+MissionGrid is a purely client-side SPA, so a single public build can serve every organization — each one brings their own Supabase + Google keys through `/setup` and those stay in their browser's `localStorage`. No server secrets are ever deployed.
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/%3Cowner%3E/MissionGrid)
+
+> Replace `<owner>` in the button link with the GitHub org/user that owns the public fork.
+
+One-time steps after clicking Deploy (or importing the repo manually in Vercel):
+
+1. Accept the detected **Vite** framework preset — [`vercel.json`](vercel.json) overrides the install command to use `--legacy-peer-deps` and wires up SPA rewrites so `/setup`, `/join`, `/volunteer`, `/shift`, and `/admin/*` work on direct load and refresh.
+2. Leave **Environment Variables** empty for a clean public deploy. Orgs paste their own keys at `/setup` — you never hold their secrets.
+3. Hit **Deploy**. First build is ~1–2 minutes. You'll get a `your-project.vercel.app` URL immediately; a custom domain can be attached later under **Project → Settings → Domains**.
+
+Then, per organization:
+
+- **Google Maps:** After the site is live, the admin must add the Vercel domain (`your-project.vercel.app` and any custom domain) to the **HTTP referrer allowlist** of their Google Maps API key in Google Cloud, otherwise the Maps JS loader will block the key. See [`docs/google-cloud-setup.md`](docs/google-cloud-setup.md).
+- **Supabase:** The browser anon key needs no domain config to work. If the org enables email-based auth flows, add the Vercel URL(s) to Supabase Auth's **Site URL** and **Redirect URLs**.
+
+### Alternatives
+
+Any static host works — Netlify, Cloudflare Pages, GitHub Pages (the last one needs a `base` path tweak in [`vite.config.ts`](vite.config.ts)). Cloudflare Pages is the best free backup with unlimited bandwidth. The `vercel.json` rewrites translate 1:1 to a Netlify `_redirects` file (`/* /index.html 200`) or a Cloudflare Pages `_redirects`.
+
+### Caveats worth knowing
+
+- **localStorage is per-browser.** An admin who clears site data, uses a new device, or opens incognito will re-run `/setup`. Keep the invite link and Supabase credentials somewhere safe.
+- **The Supabase anon key is visible in the browser.** That's expected for Supabase; [`docs/supabase/schema.sql`](docs/supabase/schema.sql) uses RLS as the security boundary — tighten it before going multi-tenant.
+- **PWA service worker.** [`vercel.json`](vercel.json) sets `Cache-Control: max-age=0, must-revalidate` on `/sw.js` so new deploys propagate instead of sticking volunteers on a stale bundle.
+
 ## Screens
 
 Drop real PNGs into [`docs/screenshots/`](docs/screenshots/) to replace the placeholders below.
