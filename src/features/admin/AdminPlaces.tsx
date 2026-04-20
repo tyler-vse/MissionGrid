@@ -37,7 +37,7 @@ import {
 } from '@/data/useAdminLocations'
 import { formatUnknownError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
-import type { Location } from '@/domain/models/location'
+import { hasCoords, type Location } from '@/domain/models/location'
 import { PlacesMapEditor } from '@/features/admin/PlacesMapEditor'
 
 type Filter = 'active' | 'no_go' | 'archived' | 'all'
@@ -264,7 +264,7 @@ export function AdminPlaces() {
                         Archived
                       </Badge>
                     )}
-                    {loc.lat == null || loc.lng == null ? (
+                    {!hasCoords(loc) ? (
                       <Badge variant="outline" className="gap-1">
                         <MapPin className="h-3 w-3" />
                         No coords

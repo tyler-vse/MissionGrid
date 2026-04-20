@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- factory export for registry */
 import { useEffect, useRef } from 'react'
 import type { ActivityStatus } from '@/domain/models/activityStatus'
+import { hasCoords } from '@/domain/models/location'
 import type { GeoPolygon } from '@/domain/models/serviceArea'
 import type {
   MapAreaShape,
@@ -131,7 +132,7 @@ function GoogleMapView({
     for (const m of markersRef.current) m.map = null
     markersRef.current = []
     for (const loc of locations) {
-      if (loc.lat == null || loc.lng == null) continue
+      if (!hasCoords(loc)) continue
       const marker = new google.maps.marker.AdvancedMarkerElement({
         map,
         position: { lat: loc.lat, lng: loc.lng },
@@ -153,7 +154,7 @@ function GoogleMapView({
     const map = mapRef.current
     if (!map || !selectedId) return
     const loc = locations.find((l) => l.id === selectedId)
-    if (loc && loc.lat != null && loc.lng != null) {
+    if (loc && hasCoords(loc)) {
       map.panTo({ lat: loc.lat, lng: loc.lng })
     }
   }, [selectedId, locations])

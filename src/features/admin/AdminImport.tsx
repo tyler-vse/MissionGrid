@@ -96,22 +96,32 @@ export function AdminImport() {
 
   const importable = previewRowsToImportable(preview, { includeDuplicates })
 
-  const geocodeMissing = async () => {
-    const items = needsGeocoding.map((r) => ({
-      index: preview.indexOf(r),
-      query: [
-        r.data!.address,
-        r.data!.city,
-        r.data!.state,
-        r.data!.postalCode,
-      ]
-        .filter(Boolean)
-        .join(', '),
-    })).filter((x) => x.query.trim().length > 2)
+  /**
+   * Geocode any preview rows that lack coordinates. Returns the fresh preview
+   * array so the caller can use it immediately (avoids React state-flush
+   * staleness when chained from `doImport`). Pass `silent: true` when running
+   * as part of the Import button flow so we skip the redundant success toast.
+   */
+  const geocodeMissing = async (
+    options?: { silent?: boolean },
+  ): Promise<CsvPreviewRow[]> => {
+    const items = needsGeocoding
+      .map((r) => ({
+        index: preview.indexOf(r),
+        query: [
+          r.data!.address,
+          r.data!.city,
+          r.data!.state,
+          r.data!.postalCode,
+        ]
+          .filter(Boolean)
+          .join(', '),
+      }))
+      .filter((x) => x.query.trim().length > 2)
 
     if (items.length === 0) {
-      toast.message('No rows need geocoding')
-      return
+      if (!options?.silent) toast.message('No rows need geocoding')
+      return preview
     }
 
     setGeoProgress(`Geocoding 0 / ${items.length}…`)
@@ -121,34 +131,42 @@ export function AdminImport() {
         setGeoProgress(`Geocoding ${done} / ${total}…`),
     })
 
-    setPreview((prev) => {
-      const next = [...prev]
-      for (const res of results) {
-        const row = next[res.index]
-        if (!row?.data) continue
-        if (res.ok) {
-          next[res.index] = {
-            ...row,
-            data: { ...row.data, lat: res.lat, lng: res.lng },
-            issues: row.issues.filter(
-              (i) =>
-                !/coordinates|address-only/i.test(i.message),
-            ),
-          }
-        } else {
-          next[res.index] = {
-            ...row,
-            issues: [
-              ...row.issues.filter((i) => i.severity !== 'error'),
-              { severity: 'error' as const, message: res.message },
-            ],
-          }
+    const next = [...preview]
+    let failed = 0
+    for (const res of results) {
+      const row = next[res.index]
+      if (!row?.data) continue
+      if (res.ok) {
+        next[res.index] = {
+          ...row,
+          data: { ...row.data, lat: res.lat, lng: res.lng },
+          issues: row.issues.filter(
+            (i) => !/coordinates|address-only|null island/i.test(i.message),
+          ),
+        }
+      } else {
+        failed += 1
+        next[res.index] = {
+          ...row,
+          issues: [
+            ...row.issues.filter((i) => i.severity !== 'error'),
+            { severity: 'warning' as const, message: `Geocode failed: ${res.message}` },
+          ],
         }
       }
-      return next
-    })
+    }
+    setPreview(next)
     setGeoProgress(null)
-    toast.success('Geocoding finished')
+    if (!options?.silent) {
+      if (failed > 0) {
+        toast.warning(
+          `Geocoded ${results.length - failed} of ${results.length} rows; ${failed} still missing coords`,
+        )
+      } else {
+        toast.success('Geocoding finished')
+      }
+    }
+    return next
   }
 
   const removeDuplicate = (rowNumber: number) => {
@@ -159,16 +177,32 @@ export function AdminImport() {
     setPreview((prev) => prev.filter((r) => r.rowNumber !== rowNumber))
   }
 
-  const doImport = () => {
-    if (importable.length === 0) {
+  const doImport = async () => {
+    // Auto-geocode anything still missing coords so users can't accidentally
+    // ship an address-only batch (or worse, a stack of (0, 0) rows from a
+    // blank-lat/lng CSV). The manual Geocode button above stays as a preview
+    // action for users who want to review results first.
+    let rowsSource = preview
+    if (needsGeocoding.length > 0) {
+      rowsSource = await geocodeMissing({ silent: true })
+    }
+
+    const rows = previewRowsToImportable(rowsSource, { includeDuplicates })
+    if (rows.length === 0) {
       toast.error('No valid rows to import')
       return
     }
-    importMutation.mutate(importable, {
+
+    const withoutCoords = rows.filter((r) => r.lat == null || r.lng == null).length
+
+    importMutation.mutate(rows, {
       onSuccess: (r) => {
-        toast.success(
-          `Imported ${r.imported} place${r.imported === 1 ? '' : 's'}`,
-        )
+        const msg = `Imported ${r.imported} place${r.imported === 1 ? '' : 's'}`
+        if (withoutCoords > 0) {
+          toast.success(`${msg} (${withoutCoords} without coords — geocode later)`)
+        } else {
+          toast.success(msg)
+        }
         setText('')
         setPreview([])
         setStep('upload')
@@ -391,7 +425,7 @@ Example Market,"100 Main St",39.74,-104.99,Denver,CO,80202,`}
                 Start over
               </Button>
               <Button
-                onClick={doImport}
+                onClick={() => void doImport()}
                 disabled={
                   importMutation.isPending || importable.length === 0
                 }

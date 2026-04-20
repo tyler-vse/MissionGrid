@@ -5,6 +5,7 @@ import type {
   MapRenderProps,
 } from '@/providers/maps/MapProvider'
 import type { ActivityStatus } from '@/domain/models/activityStatus'
+import { hasCoords } from '@/domain/models/location'
 import { cn } from '@/lib/utils'
 
 const statusColor: Record<ActivityStatus, string> = {
@@ -107,8 +108,7 @@ function MockMapInner(props: MapRenderProps) {
     heightClassName,
   } = props
   const mappable = locations.filter(
-    (l): l is typeof l & { lat: number; lng: number } =>
-      l.lat != null && l.lng != null,
+    (l): l is typeof l & { lat: number; lng: number } => hasCoords(l),
   )
   const xs = mappable.map((l) => l.lng)
   const ys = mappable.map((l) => l.lat)

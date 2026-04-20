@@ -27,7 +27,7 @@ import {
   useServiceAreas,
   useUpdateServiceArea,
 } from '@/data/useServiceAreas'
-import type { Location } from '@/domain/models/location'
+import { hasCoords, type Location } from '@/domain/models/location'
 import type { GeoPolygon, ServiceArea } from '@/domain/models/serviceArea'
 import { cn } from '@/lib/utils'
 import { formatUnknownError } from '@/lib/errors'
@@ -133,7 +133,12 @@ export function PlacesMapEditor({
     ]
   }, [descriptors, pendingDraw])
 
-  const mappable = locations.filter((l) => l.lat != null && l.lng != null)
+  // `hasCoords` rejects both nulls and the Null Island sentinel (0, 0) so a
+  // single bad row can't pan the map into the Gulf of Guinea.
+  const mappable = useMemo(
+    () => locations.filter((l) => hasCoords(l)),
+    [locations],
+  )
   const mapCenter = useMemo(() => {
     if (selectedZone) {
       return { lat: selectedZone.centerLat, lng: selectedZone.centerLng }
@@ -143,9 +148,9 @@ export function PlacesMapEditor({
     }
     if (mappable.length > 0) {
       const avgLat =
-        mappable.reduce((acc, l) => acc + (l.lat ?? 0), 0) / mappable.length
+        mappable.reduce((acc, l) => acc + l.lat, 0) / mappable.length
       const avgLng =
-        mappable.reduce((acc, l) => acc + (l.lng ?? 0), 0) / mappable.length
+        mappable.reduce((acc, l) => acc + l.lng, 0) / mappable.length
       return { lat: avgLat, lng: avgLng }
     }
     return { lat: 39.5, lng: -98.35 }
@@ -422,7 +427,7 @@ export function PlacesMapEditor({
       <div className="relative">
         {/* eslint-disable-next-line react-hooks/refs -- the closures below only read refs inside event handlers, never during render */}
         {registry.map.renderMap({
-          locations,
+          locations: mappable,
           center: mapCenter,
           selectedId: selectedLocationId,
           onSelectLocation: (id) => onSelectLocation(id),

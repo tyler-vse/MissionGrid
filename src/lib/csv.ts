@@ -3,11 +3,25 @@ import { z } from 'zod'
 
 // Canonical row shape for CSV imports. Coordinates are optional because many
 // lists we receive are address-only and can be imported without a geocode.
+//
+// IMPORTANT: `z.coerce.number()` on an empty string produces `0` (because
+// `Number('') === 0`), which would silently turn blank lat/lng CSV cells into
+// literal `(0, 0)` coordinates. Collapse empty/whitespace/null to `undefined`
+// before coercion so those rows correctly fall into the "needs geocoding"
+// bucket instead of getting pinned to Null Island.
+const coord = z
+  .preprocess((v) => {
+    if (v === undefined || v === null) return undefined
+    if (typeof v === 'string' && v.trim() === '') return undefined
+    return v
+  }, z.coerce.number().finite())
+  .optional()
+
 const rowSchema = z.object({
   name: z.string().min(1),
   address: z.string().min(1),
-  lat: z.coerce.number().finite().optional(),
-  lng: z.coerce.number().finite().optional(),
+  lat: coord,
+  lng: coord,
   category: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
@@ -162,16 +176,24 @@ export function parseLocationCsvPreview(text: string): {
       data.lat !== undefined && data.lat !== null && !Number.isNaN(data.lat)
     const hasLng =
       data.lng !== undefined && data.lng !== null && !Number.isNaN(data.lng)
+    const isNullIsland = hasLat && hasLng && data.lat === 0 && data.lng === 0
     if (hasLat !== hasLng) {
       issues.push({
         severity: 'warning',
-        message: 'Only one of latitude/longitude set — will import without coordinates.',
+        message:
+          'Only one of latitude/longitude set — will import without coordinates.',
       })
     } else if (!hasLat && !hasLng) {
       issues.push({
         severity: 'warning',
         message:
-          'No coordinates — will import as address-only (won’t appear on the map).',
+          'No coordinates — will geocode from the address during import.',
+      })
+    } else if (isNullIsland) {
+      issues.push({
+        severity: 'warning',
+        message:
+          'Coordinates are 0,0 (Null Island) — will re-geocode from the address during import.',
       })
     }
 
@@ -219,7 +241,9 @@ export function previewRowsToImportable(
       r.data.lng !== undefined &&
       r.data.lng !== null &&
       !Number.isNaN(r.data.lng)
-    const both = hasLat && hasLng
+    const isNullIsland =
+      hasLat && hasLng && r.data.lat === 0 && r.data.lng === 0
+    const both = hasLat && hasLng && !isNullIsland
     out.push({
       ...r.data,
       lat: both ? r.data.lat : undefined,

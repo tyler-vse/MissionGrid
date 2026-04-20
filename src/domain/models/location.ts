@@ -40,9 +40,14 @@ export interface Location {
   noGoReason?: string
 }
 
-/** Type guard for locations that have coordinates (useful for maps + distance math). */
+/** Type guard for locations that have usable coordinates (useful for maps +
+ * distance math). Rejects the Null Island sentinel `(0, 0)` because that's the
+ * classic artifact of blank CSV cells being coerced to numeric zero and is
+ * effectively never a real delivery address. */
 export function hasCoords(
   loc: Pick<Location, 'lat' | 'lng'>,
 ): loc is Pick<Location, 'lat' | 'lng'> & { lat: number; lng: number } {
-  return loc.lat != null && loc.lng != null
+  if (loc.lat == null || loc.lng == null) return false
+  if (loc.lat === 0 && loc.lng === 0) return false
+  return true
 }
