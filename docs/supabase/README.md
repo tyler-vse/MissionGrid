@@ -28,6 +28,14 @@ tables immediately.
 `drop policy if exists` + `create policy`, guarded `add constraint`), so
 re-running the full file against an existing project is equally safe.
 
+### Mid-shift suggested places (find more + drop-ins)
+
+To enable the volunteer shift's **Find more places** flow and the **Log a
+drop-in** form, run [`upgrade-suggested-places.sql`](./upgrade-suggested-places.sql).
+It adds the `create_suggested_place` RPC, which inserts a new location with
+`status='pending_review'` and `source='suggested'` so admins can review it in
+the existing admin review queue. Also idempotent.
+
 ## 3. Authentication (admin signup in the wizard)
 
 The setup wizard uses **email + password** for the first admin (`signUp` / `signIn`).

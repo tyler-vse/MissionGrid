@@ -242,6 +242,18 @@ export function createSupabaseBackend(
   const client = () =>
     requireSupabaseClient(cfg.supabaseUrl, cfg.supabaseAnonKey)
 
+  // Refcounted realtime channel registry, keyed by orgId. We share a single
+  // `locations_org_<orgId>` channel across all in-process subscribers because
+  // Supabase's realtime-js rejects `.on('postgres_changes', ...)` after
+  // `.subscribe()` on an already-joined channel — which would crash React when
+  // two components (e.g. ShiftView + FindMorePlaces) both call useLocations().
+  type ChannelEntry = {
+    channel: ReturnType<ReturnType<typeof client>['channel']>
+    unsubs: Set<(locations: Location[]) => void>
+    latest: Location[] | null
+  }
+  const locationChannels = new Map<string, ChannelEntry>()
+
   const backend: BackendProvider = {
     async getAppConfiguration(orgId) {
       const supabase = client()
@@ -420,10 +432,30 @@ export function createSupabaseBackend(
       return computeProgress(locs)
     },
 
-    // TODO(phase-3): add `listSuggestedPlaces` / `createSuggestedPlace` /
-    // `approveSuggestedPlace` / `rejectSuggestedPlace` + corresponding
-    // `suggested_places` table in docs/supabase/schema.sql. See
-    // BackendProvider for the interface contract.
+    // Volunteer-submitted suggestions (from "Find more places" + drop-in logs)
+    // land as `locations` rows with status='pending_review' and source='suggested'.
+    // The dedicated `create_suggested_place` RPC (see
+    // docs/supabase/upgrade-suggested-places.sql) does the insert with
+    // `security definer` so we don't need to widen RLS on the locations table.
+    // Approve/reject still flow through the admin review queue; we intentionally
+    // do not implement list/approve/reject here yet because the admin UI reads
+    // pending-review rows from `listAllLocations` directly.
+    async createSuggestedPlace(input) {
+      const supabase = client()
+      const { data, error } = await supabase.rpc('create_suggested_place', {
+        p_org_id: input.organizationId,
+        p_name: input.name,
+        p_address: input.address,
+        p_lat: input.lat ?? null,
+        p_lng: input.lng ?? null,
+        p_category: (input.types ?? [])[0] ?? null,
+        p_source: input.source ?? null,
+        p_submitted_by: input.submittedByVolunteerId ?? null,
+      })
+      if (error) throw error
+      if (!data) throw new Error('create_suggested_place returned no row')
+      return mapLocation(data as LocationRow)
+    },
 
     async listRecentEvents(orgId, limit = 20) {
       const supabase = client()
@@ -460,32 +492,96 @@ export function createSupabaseBackend(
 
     subscribeLocations(orgId, callback) {
       const supabase = client()
+
+      const fanout = (rows: Location[]) => {
+        const current = locationChannels.get(orgId)
+        if (!current) return
+        current.latest = rows
+        for (const cb of current.unsubs) {
+          try {
+            cb(rows)
+          } catch (err) {
+            console.warn('subscribeLocations listener threw', err)
+          }
+        }
+      }
+
       const load = () => {
         void supabase
           .from('locations')
           .select('*')
           .eq('organization_id', orgId)
           .is('archived_at', null)
-          .then(({ data }) => {
-            if (data) callback((data as LocationRow[]).map(mapLocation))
+          .then(({ data, error }) => {
+            if (error) {
+              console.warn('subscribeLocations load failed', error.message)
+              return
+            }
+            if (!data) return
+            fanout((data as LocationRow[]).map(mapLocation))
           })
       }
-      load()
-      const channel = supabase
-        .channel(`locations_org_${orgId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'locations',
-            filter: `organization_id=eq.${orgId}`,
-          },
-          () => load(),
-        )
-        .subscribe()
+
+      let entry = locationChannels.get(orgId)
+      if (!entry) {
+        try {
+          const channel = supabase
+            .channel(`locations_org_${orgId}`)
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'locations',
+                filter: `organization_id=eq.${orgId}`,
+              },
+              () => load(),
+            )
+            .subscribe()
+          entry = { channel, unsubs: new Set(), latest: null }
+          locationChannels.set(orgId, entry)
+          load()
+        } catch (err) {
+          // If realtime wiring ever throws, fall back to a single fetch so the
+          // caller at least gets data, and return a noop unsubscribe instead of
+          // propagating the error and blanking the React tree.
+          console.warn(
+            'subscribeLocations: failed to init realtime channel; falling back to one-shot fetch',
+            err,
+          )
+          void supabase
+            .from('locations')
+            .select('*')
+            .eq('organization_id', orgId)
+            .is('archived_at', null)
+            .then(({ data }) => {
+              if (data) callback((data as LocationRow[]).map(mapLocation))
+            })
+          return () => {}
+        }
+      }
+
+      entry.unsubs.add(callback)
+      if (entry.latest) {
+        try {
+          callback(entry.latest)
+        } catch (err) {
+          console.warn('subscribeLocations listener threw', err)
+        }
+      }
+
       return () => {
-        void supabase.removeChannel(channel)
+        const current = locationChannels.get(orgId)
+        if (!current) return
+        current.unsubs.delete(callback)
+        if (current.unsubs.size === 0) {
+          locationChannels.delete(orgId)
+          try {
+            void supabase.removeChannel(current.channel)
+          } catch (err) {
+            console.warn('subscribeLocations: removeChannel failed', err)
+          }
+        }
       }
     },
 

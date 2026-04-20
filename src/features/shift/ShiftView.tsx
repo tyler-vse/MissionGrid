@@ -139,13 +139,28 @@ export function ShiftView() {
     ),
   })
 
+  // Snapshot the first routing suggestion into the shift store so the roster
+  // stays stable even as individual stops flip to completed/skipped on the
+  // backend. Without this the route query re-runs, drops completed stops, and
+  // the thermometer would stall at 0% while toasts claim success.
+  useEffect(() => {
+    if (shift.status !== 'active') return
+    if (!suggestion) return
+    if (shift.plannedLocationIds.length > 0) return
+    if (suggestion.locationIds.length === 0) return
+    shift.setPlannedLocationIds(suggestion.locationIds)
+  }, [shift, suggestion])
+
   const baseStops = useMemo(() => {
-    if (!suggestion) return []
-    const byId = new Map(filteredLocations.map((l) => [l.id, l]))
-    return suggestion.locationIds
+    const byId = new Map(locations.map((l) => [l.id, l]))
+    const rosterIds =
+      shift.plannedLocationIds.length > 0
+        ? shift.plannedLocationIds
+        : (suggestion?.locationIds ?? [])
+    return rosterIds
       .map((id) => byId.get(id))
       .filter((l): l is NonNullable<typeof l> => Boolean(l))
-  }, [suggestion, filteredLocations])
+  }, [shift.plannedLocationIds, suggestion, locations])
 
   // Fold in any mid-shift additions the volunteer opted into
   const stops = useMemo(() => {
@@ -209,7 +224,9 @@ export function ShiftView() {
           ...ctx,
         })
         shift.recordComplete(id)
-        const done = shift.completedLocationIds.length + 1
+        // Read from the store (not the render-closure snapshot) so the toast
+        // reflects the actual post-update count.
+        const done = useShiftStore.getState().completedLocationIds.length
         toast.success(`Nice — ${done} place${done === 1 ? '' : 's'} done`)
       } else {
         await skip.mutateAsync({

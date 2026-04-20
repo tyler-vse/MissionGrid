@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { Search } from 'lucide-react'
+import { Check, LocateFixed, MapPin, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { LocationCard } from '@/components/LocationCard'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import {
   type PlaceCategoryId,
 } from '@/domain/models/placeCategory'
 import type { PlaceSearchResult } from '@/providers/places/PlacesProvider'
+import { useCompleteLocation } from '@/data/useCompleteLocation'
 import { useLocations } from '@/data/useLocations'
 import { useServiceAreas } from '@/data/useServiceAreas'
 import { useActiveVolunteer } from '@/data/useVolunteer'
@@ -81,8 +82,9 @@ export function FindMorePlaces({
   const orgDefaultCategory =
     useRuntimeConfigStore((s) => s.placeCategoryDefault) ??
     DEFAULT_PLACE_CATEGORY
-  const { volunteer } = useActiveVolunteer()
+  const { volunteer, activeVolunteerId } = useActiveVolunteer()
   const isAdmin = Boolean(volunteer?.isAdmin)
+  const complete = useCompleteLocation()
 
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -90,6 +92,12 @@ export function FindMorePlaces({
   const [selectedCategory, setSelectedCategory] = useState<PlaceCategoryId>(
     orgDefaultCategory,
   )
+  const [dropInOpen, setDropInOpen] = useState(false)
+  const [dropInName, setDropInName] = useState('')
+  const [dropInAddress, setDropInAddress] = useState('')
+  const [dropInCoords, setDropInCoords] = useState<LatLng | null>(null)
+  const [dropInGeoLoading, setDropInGeoLoading] = useState(false)
+  const [dropInSubmitting, setDropInSubmitting] = useState(false)
 
   const activeCategory: PlaceCategoryId = isAdmin
     ? selectedCategory
@@ -175,12 +183,98 @@ export function FindMorePlaces({
         lat: r.location.lat,
         lng: r.location.lng,
         source: 'volunteer_shift',
+        submittedByVolunteerId: activeVolunteerId ?? undefined,
       })
       shift.recordAdded(created.id)
       setPlaceResults((list) => list.filter((p) => p.placeId !== r.placeId))
       toast.success(`${r.name} sent to admin review and added to your shift`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not add place')
+    }
+  }
+
+  const captureDropInLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      toast.error("Geolocation isn't available on this device")
+      return
+    }
+    setDropInGeoLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setDropInCoords({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        })
+        setDropInGeoLoading(false)
+        toast.success('Current location captured')
+      },
+      (err) => {
+        setDropInGeoLoading(false)
+        toast.error(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location permission denied'
+            : "Couldn't read your location",
+        )
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30_000 },
+    )
+  }
+
+  const resetDropIn = () => {
+    setDropInName('')
+    setDropInAddress('')
+    setDropInCoords(null)
+  }
+
+  const submitDropIn = async () => {
+    const name = dropInName.trim()
+    if (!name) {
+      toast.error('Add a place name')
+      return
+    }
+    if (!registry.backend.createSuggestedPlace) {
+      toast.error('Drop-ins are not supported on this backend yet')
+      return
+    }
+    if (!activeVolunteerId) {
+      toast.error('Pick a volunteer in the header')
+      return
+    }
+    const orgId = locations[0]?.organizationId
+    if (!orgId) {
+      toast.error('No organization configured')
+      return
+    }
+    setDropInSubmitting(true)
+    try {
+      const coords = dropInCoords ?? origin
+      const created = await registry.backend.createSuggestedPlace({
+        organizationId: orgId,
+        name,
+        address: dropInAddress.trim(),
+        lat: coords.lat,
+        lng: coords.lng,
+        source: 'volunteer_dropin',
+        submittedByVolunteerId: activeVolunteerId,
+      })
+      await complete.mutateAsync({
+        locationId: created.id,
+        volunteerId: activeVolunteerId,
+        shiftId: shift.shiftId ?? null,
+        memberId: shift.partyMemberId ?? null,
+      })
+      shift.recordAdded(created.id)
+      shift.recordComplete(created.id)
+      const done = useShiftStore.getState().completedLocationIds.length
+      toast.success(
+        `${created.name} logged as complete — ${done} place${done === 1 ? '' : 's'} done`,
+      )
+      resetDropIn()
+      setDropInOpen(false)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not log drop-in')
+    } finally {
+      setDropInSubmitting(false)
     }
   }
 
@@ -315,6 +409,110 @@ export function FindMorePlaces({
           description="Everything in your service area is already on your route."
         />
       )}
+
+      <div className="space-y-2 rounded-xl border border-dashed bg-background p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">
+              Log a drop-in
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              At a place that isn&rsquo;t on your route? Add it and mark it
+              complete in one tap.
+            </p>
+          </div>
+          {!dropInOpen && (
+            <Button
+              size="tap"
+              variant="outline"
+              onClick={() => setDropInOpen(true)}
+              className="shrink-0 gap-1.5"
+            >
+              <MapPin className="h-4 w-4" />
+              Add drop-in
+            </Button>
+          )}
+        </div>
+        {dropInOpen && (
+          <div className="space-y-2 pt-1">
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Place name
+              </span>
+              <input
+                type="text"
+                value={dropInName}
+                onChange={(e) => setDropInName(e.target.value)}
+                placeholder="e.g. Mack's Barbershop"
+                autoFocus
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Address (optional)
+              </span>
+              <input
+                type="text"
+                value={dropInAddress}
+                onChange={(e) => setDropInAddress(e.target.value)}
+                placeholder="1234 Main St"
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={captureDropInLocation}
+                disabled={dropInGeoLoading}
+                className="gap-1.5"
+              >
+                <LocateFixed className="h-4 w-4" />
+                {dropInGeoLoading
+                  ? 'Locating…'
+                  : dropInCoords
+                    ? 'Location captured'
+                    : 'Use my location'}
+              </Button>
+              {dropInCoords && (
+                <span className="text-xs text-muted-foreground">
+                  {dropInCoords.lat.toFixed(5)}, {dropInCoords.lng.toFixed(5)}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  resetDropIn()
+                  setDropInOpen(false)
+                }}
+                disabled={dropInSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="tap"
+                variant="success"
+                onClick={() => void submitDropIn()}
+                disabled={dropInSubmitting || !dropInName.trim()}
+                className="gap-1.5"
+              >
+                <Check className="h-4 w-4" />
+                {dropInSubmitting ? 'Saving…' : 'Log as complete'}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Drop-ins are sent to the admin review queue for approval.
+            </p>
+          </div>
+        )}
+      </div>
 
       {onDone && (
         <div className="flex justify-end pt-2">

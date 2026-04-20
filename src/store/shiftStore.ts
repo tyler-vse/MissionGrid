@@ -41,10 +41,18 @@ export interface ShiftState {
   claimedLocationIds: string[]
   /** Additional stops added mid-shift via "I have more time". */
   addedLocationIds: string[]
+  /**
+   * The stable list of location ids that make up this shift's route, captured
+   * from the first routing suggestion after `startShift`. Keeping this frozen
+   * is what prevents completed/skipped stops from vanishing when the routing
+   * suggestion recomputes on backend status changes.
+   */
+  plannedLocationIds: string[]
 
   setMinutes: (m: TimeWindowMinutes) => void
   setPartySize: (n: number) => void
   setCampaignId: (id: string | null) => void
+  setPlannedLocationIds: (ids: string[]) => void
 
   startShift: (input: {
     minutes: TimeWindowMinutes
@@ -84,6 +92,7 @@ function initialState() {
     skippedLocationIds: [],
     claimedLocationIds: [],
     addedLocationIds: [],
+    plannedLocationIds: [],
   }
 }
 
@@ -104,6 +113,7 @@ export const useShiftStore = create<ShiftState>()(
       setMinutes: (m) => set({ minutes: m }),
       setPartySize: (n) => set({ partySize: clampPartySize(n) }),
       setCampaignId: (id) => set({ campaignId: id }),
+      setPlannedLocationIds: (ids) => set({ plannedLocationIds: [...ids] }),
 
       startShift: ({
         minutes,
@@ -165,12 +175,12 @@ export const useShiftStore = create<ShiftState>()(
     {
       name: `${APP_CONFIG.storageKey}:shift`,
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         if (!persisted || typeof persisted !== 'object') return persisted
-        const prev = persisted as Partial<ShiftState>
+        let prev = persisted as Partial<ShiftState>
         if (version < 2) {
-          return {
+          prev = {
             ...prev,
             shiftId: prev.shiftId ?? null,
             campaignId: prev.campaignId ?? null,
@@ -178,6 +188,12 @@ export const useShiftStore = create<ShiftState>()(
             partyToken: prev.partyToken ?? null,
             partyTokenExpiresAt: prev.partyTokenExpiresAt ?? null,
             partyMemberId: prev.partyMemberId ?? null,
+          }
+        }
+        if (version < 3) {
+          prev = {
+            ...prev,
+            plannedLocationIds: prev.plannedLocationIds ?? [],
           }
         }
         return prev
