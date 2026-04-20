@@ -6,6 +6,12 @@
 --
 -- Safe to paste into the Supabase SQL editor on an existing project. The whole
 -- file is idempotent; re-running it is a no-op.
+--
+-- Note: admin zone CRUD (create/update/delete on public.service_areas) does
+-- not require new SQL — the existing `service_areas_rw` policy in schema.sql
+-- already allows reads and writes, and `campaign_service_areas` / `locations`
+-- FKs cascade appropriately when a zone is deleted (link rows are removed and
+-- locations.service_area_id is set to NULL).
 
 create extension if not exists "pgcrypto";
 

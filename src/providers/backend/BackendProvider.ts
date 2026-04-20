@@ -3,7 +3,7 @@ import type { Campaign, CampaignStatus } from '@/domain/models/campaign'
 import type { Location } from '@/domain/models/location'
 import type { LocationEvent } from '@/domain/models/locationEvent'
 import type { Organization } from '@/domain/models/organization'
-import type { ServiceArea } from '@/domain/models/serviceArea'
+import type { GeoPolygon, ServiceArea } from '@/domain/models/serviceArea'
 import type { ProgressSnapshot } from '@/domain/services/progress'
 import type { Shift, ShiftMember } from '@/domain/models/shift'
 import type { SuggestedPlace } from '@/domain/models/suggestedPlace'
@@ -27,6 +27,23 @@ export interface CreateSuggestedPlaceInput {
 export interface SetLocationNoGoInput {
   locationId: string
   reason?: string
+}
+
+export interface CreateServiceAreaInput {
+  organizationId: string
+  name: string
+  centerLat: number
+  centerLng: number
+  radiusMeters?: number | null
+  polygon?: GeoPolygon | null
+}
+
+export interface UpdateServiceAreaInput {
+  name?: string
+  centerLat?: number
+  centerLng?: number
+  radiusMeters?: number | null
+  polygon?: GeoPolygon | null
 }
 
 export interface RecentActivityEvent extends LocationEvent {
@@ -136,6 +153,14 @@ export interface BackendProvider {
   restoreLocation?(locationId: string): Promise<Location>
   setLocationNoGo?(input: SetLocationNoGoInput): Promise<Location>
   clearLocationNoGo?(locationId: string): Promise<Location>
+
+  /** Admin-only zone / service area CRUD (optional). */
+  createServiceArea?(input: CreateServiceAreaInput): Promise<ServiceArea>
+  updateServiceArea?(
+    id: string,
+    patch: UpdateServiceAreaInput,
+  ): Promise<ServiceArea>
+  deleteServiceArea?(id: string): Promise<void>
 
   /** Shifts lifecycle (optional). */
   startShift?(input: StartShiftInput): Promise<Shift>

@@ -1,5 +1,6 @@
 import { computeProgress } from '@/domain/services/progress'
 import type { Location } from '@/domain/models/location'
+import type { ServiceArea } from '@/domain/models/serviceArea'
 import type {
   BackendProvider,
   RecentActivityEvent,
@@ -384,6 +385,44 @@ export const mockBackend: BackendProvider = {
       .clearLocationNoGo(locationId)
     if (!updated) throw new Error('Location not found')
     return updated
+  },
+
+  async createServiceArea(input) {
+    return useMockBackendStore.getState().createServiceArea({
+      organizationId: input.organizationId,
+      name: input.name,
+      centerLat: input.centerLat,
+      centerLng: input.centerLng,
+      radiusMeters: input.radiusMeters ?? undefined,
+      polygon: input.polygon ?? undefined,
+    })
+  },
+
+  async updateServiceArea(id, patch) {
+    const storePatch: Partial<{
+      name: string
+      centerLat: number
+      centerLng: number
+      radiusMeters: number | undefined
+      polygon: ServiceArea['polygon']
+    }> = {}
+    if (patch.name !== undefined) storePatch.name = patch.name
+    if (patch.centerLat !== undefined) storePatch.centerLat = patch.centerLat
+    if (patch.centerLng !== undefined) storePatch.centerLng = patch.centerLng
+    if (patch.radiusMeters !== undefined) {
+      storePatch.radiusMeters = patch.radiusMeters ?? undefined
+    }
+    if (patch.polygon !== undefined) {
+      storePatch.polygon = patch.polygon ?? undefined
+    }
+    const next = useMockBackendStore.getState().updateServiceArea(id, storePatch)
+    if (!next) throw new Error('Zone not found')
+    return next
+  },
+
+  async deleteServiceArea(id) {
+    const removed = useMockBackendStore.getState().deleteServiceArea(id)
+    if (!removed) throw new Error('Zone not found')
   },
 
   async startShift(input) {

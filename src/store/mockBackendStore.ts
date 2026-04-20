@@ -101,6 +101,14 @@ export interface MockBackendState {
   restoreLocation: (locationId: string) => Location | null
   setLocationNoGo: (locationId: string, reason?: string) => Location | null
   clearLocationNoGo: (locationId: string) => Location | null
+  createServiceArea: (
+    input: Omit<ServiceArea, 'id'>,
+  ) => ServiceArea
+  updateServiceArea: (
+    id: string,
+    patch: Partial<Omit<ServiceArea, 'id' | 'organizationId'>>,
+  ) => ServiceArea | null
+  deleteServiceArea: (id: string) => boolean
   startShift: (
     input: Omit<
       Shift,
@@ -515,6 +523,65 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
       return { locations, locationEvents: events }
     })
     return updated
+  },
+
+  createServiceArea: (input) => {
+    const record: ServiceArea = {
+      id: newId('area'),
+      organizationId: input.organizationId,
+      name: input.name,
+      centerLat: input.centerLat,
+      centerLng: input.centerLng,
+      radiusMeters: input.radiusMeters,
+      polygon: input.polygon,
+    }
+    set((s) => ({ serviceAreas: [...s.serviceAreas, record] }))
+    return record
+  },
+
+  updateServiceArea: (id, patch) => {
+    let updated: ServiceArea | null = null
+    set((s) => ({
+      serviceAreas: s.serviceAreas.map((a) => {
+        if (a.id !== id) return a
+        updated = {
+          ...a,
+          ...patch,
+          id: a.id,
+          organizationId: a.organizationId,
+        }
+        return updated
+      }),
+    }))
+    return updated
+  },
+
+  deleteServiceArea: (id) => {
+    let removed = false
+    set((s) => {
+      const next = s.serviceAreas.filter((a) => a.id !== id)
+      removed = next.length !== s.serviceAreas.length
+      const locations = removed
+        ? s.locations.map((l) =>
+            l.serviceAreaId === id
+              ? { ...l, serviceAreaId: undefined }
+              : l,
+          )
+        : s.locations
+      const campaigns = removed
+        ? s.campaigns.map((c) =>
+            c.serviceAreaIds?.includes(id)
+              ? {
+                  ...c,
+                  serviceAreaIds: c.serviceAreaIds.filter((sid) => sid !== id),
+                  updatedAt: new Date().toISOString(),
+                }
+              : c,
+          )
+        : s.campaigns
+      return { serviceAreas: next, locations, campaigns }
+    })
+    return removed
   },
 
   clearLocationNoGo: (locationId) => {

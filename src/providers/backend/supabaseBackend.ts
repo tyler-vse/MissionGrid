@@ -631,6 +631,59 @@ export function createSupabaseBackend(
       return mapLocation(data as LocationRow)
     },
 
+    async createServiceArea(input) {
+      const supabase = client()
+      const { data, error } = await supabase
+        .from('service_areas')
+        .insert({
+          organization_id: input.organizationId,
+          name: input.name,
+          center_lat: input.centerLat,
+          center_lng: input.centerLng,
+          radius_meters: input.radiusMeters ?? null,
+          polygon: input.polygon ?? null,
+        })
+        .select('*')
+        .single()
+      if (error) throw error
+      return mapServiceArea(
+        data as Parameters<typeof mapServiceArea>[0],
+      )
+    },
+
+    async updateServiceArea(id, patch) {
+      const supabase = client()
+      const update: Record<string, unknown> = {}
+      if (patch.name !== undefined) update.name = patch.name
+      if (patch.centerLat !== undefined) update.center_lat = patch.centerLat
+      if (patch.centerLng !== undefined) update.center_lng = patch.centerLng
+      if (patch.radiusMeters !== undefined) {
+        update.radius_meters = patch.radiusMeters ?? null
+      }
+      if (patch.polygon !== undefined) {
+        update.polygon = patch.polygon ?? null
+      }
+      const { data, error } = await supabase
+        .from('service_areas')
+        .update(update)
+        .eq('id', id)
+        .select('*')
+        .single()
+      if (error) throw error
+      return mapServiceArea(
+        data as Parameters<typeof mapServiceArea>[0],
+      )
+    },
+
+    async deleteServiceArea(id) {
+      const supabase = client()
+      const { error } = await supabase
+        .from('service_areas')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+    },
+
     async startShift(input) {
       const supabase = client()
       const { data, error } = await supabase.rpc('start_shift', {

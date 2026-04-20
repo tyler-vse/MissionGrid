@@ -1,7 +1,12 @@
 /* eslint-disable react-refresh/only-export-components -- factory export for registry */
 import { useEffect, useRef } from 'react'
 import type { ActivityStatus } from '@/domain/models/activityStatus'
-import type { MapProvider, MapRenderProps } from '@/providers/maps/MapProvider'
+import type { GeoPolygon } from '@/domain/models/serviceArea'
+import type {
+  MapAreaShape,
+  MapProvider,
+  MapRenderProps,
+} from '@/providers/maps/MapProvider'
 import { loadGoogleMaps } from '@/providers/maps/loader'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +34,27 @@ function createCircleContent(color: string, selected: boolean): HTMLElement {
   return el
 }
 
+type AreaHandle =
+  | { kind: 'polygon'; polygon: google.maps.Polygon; listeners: google.maps.MapsEventListener[] }
+  | { kind: 'circle'; circle: google.maps.Circle; listeners: google.maps.MapsEventListener[] }
+
+function polygonToGeoJson(polygon: google.maps.Polygon): GeoPolygon {
+  const path = polygon.getPath()
+  const ring: number[][] = []
+  for (let i = 0; i < path.getLength(); i++) {
+    const pt = path.getAt(i)
+    ring.push([pt.lng(), pt.lat()])
+  }
+  if (ring.length > 0) {
+    const [firstLng, firstLat] = ring[0]!
+    const [lastLng, lastLat] = ring[ring.length - 1]!
+    if (firstLng !== lastLng || firstLat !== lastLat) {
+      ring.push([firstLng!, firstLat!])
+    }
+  }
+  return { type: 'Polygon', coordinates: [ring] }
+}
+
 function GoogleMapView({
   apiKey,
   locations,
@@ -36,13 +62,35 @@ function GoogleMapView({
   selectedId,
   onSelectLocation,
   area,
+  areas,
+  selectedAreaId,
+  onSelectArea,
+  editMode,
+  onAreaChange,
+  onAreaDrawn,
   heightClassName,
 }: MapRenderProps & { apiKey: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([])
-  const circleRef = useRef<google.maps.Circle | null>(null)
-  const polygonRef = useRef<google.maps.Polygon | null>(null)
+  const legacyCircleRef = useRef<google.maps.Circle | null>(null)
+  const legacyPolygonRef = useRef<google.maps.Polygon | null>(null)
+  const areasRef = useRef<Map<string, AreaHandle>>(new Map())
+  const drawingManagerRef = useRef<google.maps.drawing.DrawingManager | null>(
+    null,
+  )
+  const drawingListenersRef = useRef<google.maps.MapsEventListener[]>([])
+
+  // Stash the latest callbacks so long-lived listeners always see the latest
+  // handlers without tearing down/reattaching.
+  const onSelectAreaRef = useRef(onSelectArea)
+  const onAreaChangeRef = useRef(onAreaChange)
+  const onAreaDrawnRef = useRef(onAreaDrawn)
+  useEffect(() => {
+    onSelectAreaRef.current = onSelectArea
+    onAreaChangeRef.current = onAreaChange
+    onAreaDrawnRef.current = onAreaDrawn
+  }, [onSelectArea, onAreaChange, onAreaDrawn])
 
   useEffect(() => {
     if (!ref.current) return
@@ -110,21 +158,21 @@ function GoogleMapView({
     }
   }, [selectedId, locations])
 
-  // Area overlays
+  // Legacy single-area overlay (kept for non-admin views that still pass `area`).
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    if (circleRef.current) {
-      circleRef.current.setMap(null)
-      circleRef.current = null
+    if (legacyCircleRef.current) {
+      legacyCircleRef.current.setMap(null)
+      legacyCircleRef.current = null
     }
-    if (polygonRef.current) {
-      polygonRef.current.setMap(null)
-      polygonRef.current = null
+    if (legacyPolygonRef.current) {
+      legacyPolygonRef.current.setMap(null)
+      legacyPolygonRef.current = null
     }
-    if (!area) return
+    if (!area || areas) return
     if (area.radiusMeters && area.radiusMeters > 0) {
-      circleRef.current = new google.maps.Circle({
+      legacyCircleRef.current = new google.maps.Circle({
         map,
         center: area.center,
         radius: area.radiusMeters,
@@ -137,7 +185,7 @@ function GoogleMapView({
     }
     const ring = area.polygon?.coordinates?.[0]
     if (ring && ring.length > 2) {
-      polygonRef.current = new google.maps.Polygon({
+      legacyPolygonRef.current = new google.maps.Polygon({
         map,
         paths: ring.map(([lng, lat]) => ({ lat: lat!, lng: lng! })),
         strokeColor: '#16a34a',
@@ -147,7 +195,255 @@ function GoogleMapView({
         fillOpacity: 0.08,
       })
     }
-  }, [area])
+  }, [area, areas])
+
+  // Multi-area overlays (admin editor).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (!areas) {
+      for (const [, handle] of areasRef.current) {
+        for (const l of handle.listeners) l.remove()
+        if (handle.kind === 'polygon') handle.polygon.setMap(null)
+        else handle.circle.setMap(null)
+      }
+      areasRef.current.clear()
+      return
+    }
+
+    const nextIds = new Set(areas.map((a) => a.id))
+    for (const [id, handle] of areasRef.current) {
+      if (!nextIds.has(id)) {
+        for (const l of handle.listeners) l.remove()
+        if (handle.kind === 'polygon') handle.polygon.setMap(null)
+        else handle.circle.setMap(null)
+        areasRef.current.delete(id)
+      }
+    }
+
+    for (const descriptor of areas) {
+      const existing = areasRef.current.get(descriptor.id)
+      const wantsCircle =
+        descriptor.radiusMeters != null && descriptor.radiusMeters > 0
+      const wantsPolygon =
+        descriptor.polygon?.coordinates?.[0] != null &&
+        descriptor.polygon.coordinates[0].length > 2
+      const kind: AreaHandle['kind'] = wantsPolygon
+        ? 'polygon'
+        : wantsCircle
+          ? 'circle'
+          : 'circle'
+
+      if (existing && existing.kind !== kind) {
+        for (const l of existing.listeners) l.remove()
+        if (existing.kind === 'polygon') existing.polygon.setMap(null)
+        else existing.circle.setMap(null)
+        areasRef.current.delete(descriptor.id)
+      }
+
+      const id = descriptor.id
+      const isSelected = id === selectedAreaId
+      const stroke = isSelected ? '#1d4ed8' : '#16a34a'
+      const fill = isSelected ? '#1d4ed8' : '#16a34a'
+
+      if (kind === 'polygon' && wantsPolygon) {
+        const ring = descriptor.polygon!.coordinates![0]!
+        const paths = ring.map(([lng, lat]) => ({ lat: lat!, lng: lng! }))
+        const current = areasRef.current.get(id) as
+          | Extract<AreaHandle, { kind: 'polygon' }>
+          | undefined
+        if (!current) {
+          const polygon = new google.maps.Polygon({
+            map,
+            paths,
+            strokeColor: stroke,
+            strokeOpacity: isSelected ? 0.9 : 0.7,
+            strokeWeight: isSelected ? 3 : 2,
+            fillColor: fill,
+            fillOpacity: isSelected ? 0.12 : 0.08,
+            clickable: true,
+          })
+          const listeners: google.maps.MapsEventListener[] = []
+          listeners.push(
+            polygon.addListener('click', () => {
+              onSelectAreaRef.current?.(id)
+            }),
+          )
+          const pushChange = () => {
+            onAreaChangeRef.current?.(id, {
+              polygon: polygonToGeoJson(polygon),
+            })
+          }
+          listeners.push(
+            polygon.getPath().addListener('set_at', pushChange),
+          )
+          listeners.push(
+            polygon.getPath().addListener('insert_at', pushChange),
+          )
+          listeners.push(
+            polygon.getPath().addListener('remove_at', pushChange),
+          )
+          areasRef.current.set(id, { kind: 'polygon', polygon, listeners })
+        } else {
+          current.polygon.setPaths(paths)
+          current.polygon.setOptions({
+            strokeColor: stroke,
+            strokeOpacity: isSelected ? 0.9 : 0.7,
+            strokeWeight: isSelected ? 3 : 2,
+            fillColor: fill,
+            fillOpacity: isSelected ? 0.12 : 0.08,
+          })
+        }
+      } else {
+        // Circle (either explicit radius or fallback while nothing else to draw).
+        const current = areasRef.current.get(id) as
+          | Extract<AreaHandle, { kind: 'circle' }>
+          | undefined
+        const radius = descriptor.radiusMeters ?? 0
+        if (!current) {
+          const circle = new google.maps.Circle({
+            map,
+            center: descriptor.center,
+            radius,
+            strokeColor: stroke,
+            strokeOpacity: isSelected ? 0.9 : 0.6,
+            strokeWeight: isSelected ? 3 : 2,
+            fillColor: fill,
+            fillOpacity: isSelected ? 0.1 : 0.06,
+            clickable: true,
+          })
+          const listeners: google.maps.MapsEventListener[] = []
+          listeners.push(
+            circle.addListener('click', () => {
+              onSelectAreaRef.current?.(id)
+            }),
+          )
+          const pushChange = () => {
+            const c = circle.getCenter()
+            onAreaChangeRef.current?.(id, {
+              center: c ? { lat: c.lat(), lng: c.lng() } : undefined,
+              radiusMeters: circle.getRadius(),
+            })
+          }
+          listeners.push(circle.addListener('radius_changed', pushChange))
+          listeners.push(circle.addListener('center_changed', pushChange))
+          areasRef.current.set(id, { kind: 'circle', circle, listeners })
+        } else {
+          current.circle.setCenter(descriptor.center)
+          current.circle.setRadius(radius)
+          current.circle.setOptions({
+            strokeColor: stroke,
+            strokeOpacity: isSelected ? 0.9 : 0.6,
+            strokeWeight: isSelected ? 3 : 2,
+            fillColor: fill,
+            fillOpacity: isSelected ? 0.1 : 0.06,
+          })
+        }
+      }
+    }
+
+    // Apply editable/draggable flags based on edit mode.
+    const editingId =
+      editMode && editMode.kind === 'editing' ? editMode.areaId : null
+    for (const [id, handle] of areasRef.current) {
+      const editable = id === editingId
+      if (handle.kind === 'polygon') {
+        handle.polygon.setEditable(editable)
+        handle.polygon.setDraggable(editable)
+      } else {
+        handle.circle.setEditable(editable)
+        handle.circle.setDraggable(editable)
+      }
+    }
+  }, [areas, selectedAreaId, editMode])
+
+  // Drawing manager for creating new zones.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    for (const l of drawingListenersRef.current) l.remove()
+    drawingListenersRef.current = []
+    if (drawingManagerRef.current) {
+      drawingManagerRef.current.setMap(null)
+      drawingManagerRef.current = null
+    }
+    if (!editMode) return
+    if (
+      editMode.kind !== 'drawingPolygon' &&
+      editMode.kind !== 'drawingCircle'
+    ) {
+      return
+    }
+    if (!google.maps.drawing?.DrawingManager) return
+
+    const isPolygon = editMode.kind === 'drawingPolygon'
+    const manager = new google.maps.drawing.DrawingManager({
+      drawingMode: isPolygon
+        ? google.maps.drawing.OverlayType.POLYGON
+        : google.maps.drawing.OverlayType.CIRCLE,
+      drawingControl: false,
+      polygonOptions: {
+        strokeColor: '#1d4ed8',
+        strokeOpacity: 0.9,
+        strokeWeight: 2,
+        fillColor: '#1d4ed8',
+        fillOpacity: 0.1,
+        clickable: true,
+        editable: false,
+      },
+      circleOptions: {
+        strokeColor: '#1d4ed8',
+        strokeOpacity: 0.9,
+        strokeWeight: 2,
+        fillColor: '#1d4ed8',
+        fillOpacity: 0.08,
+        clickable: true,
+        editable: false,
+      },
+    })
+    manager.setMap(map)
+    drawingManagerRef.current = manager
+
+    if (isPolygon) {
+      drawingListenersRef.current.push(
+        google.maps.event.addListener(
+          manager,
+          'polygoncomplete',
+          (polygon: google.maps.Polygon) => {
+            const geo = polygonToGeoJson(polygon)
+            polygon.setMap(null)
+            const shape: MapAreaShape = { polygon: geo }
+            onAreaDrawnRef.current?.(shape)
+          },
+        ),
+      )
+    } else {
+      drawingListenersRef.current.push(
+        google.maps.event.addListener(
+          manager,
+          'circlecomplete',
+          (circle: google.maps.Circle) => {
+            const c = circle.getCenter()
+            const shape: MapAreaShape = {
+              center: c ? { lat: c.lat(), lng: c.lng() } : undefined,
+              radiusMeters: circle.getRadius(),
+            }
+            circle.setMap(null)
+            onAreaDrawnRef.current?.(shape)
+          },
+        ),
+      )
+    }
+
+    return () => {
+      for (const l of drawingListenersRef.current) l.remove()
+      drawingListenersRef.current = []
+      manager.setMap(null)
+      if (drawingManagerRef.current === manager) {
+        drawingManagerRef.current = null
+      }
+    }
+  }, [editMode])
 
   return (
     <div

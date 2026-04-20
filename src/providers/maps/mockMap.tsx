@@ -1,4 +1,5 @@
 import type {
+  MapAreaDescriptor,
   MapAreaOverlay,
   MapProvider,
   MapRenderProps,
@@ -42,16 +43,26 @@ function Pin({
   )
 }
 
-function AreaOverlay({
+interface Bounds {
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+}
+
+function AreaCircle({
   area,
   bounds,
+  selected,
+  onClick,
 }: {
   area: MapAreaOverlay
-  bounds: { minX: number; maxX: number; minY: number; maxY: number }
+  bounds: Bounds
+  selected?: boolean
+  onClick?: () => void
 }) {
   const { minX, maxX, minY, maxY } = bounds
   if (!area.radiusMeters) return null
-  // Approximate: 1 degree lat ≈ 111km; draw as a rough ellipse.
   const kmPerDegLng =
     111 * Math.cos(((area.center.lat * Math.PI) / 180) || 0)
   const radiusDegLat = area.radiusMeters / 1000 / 111
@@ -62,9 +73,16 @@ function AreaOverlay({
   const bottomPct = ((area.center.lat - minY) / (maxY - minY)) * 100
 
   return (
-    <div
-      aria-hidden
-      className="absolute rounded-full border-2 border-primary/60 bg-primary/5"
+    <button
+      type="button"
+      aria-label="Zone"
+      onClick={onClick}
+      className={cn(
+        'absolute rounded-full border-2',
+        selected
+          ? 'border-primary bg-primary/15'
+          : 'border-primary/60 bg-primary/5',
+      )}
       style={{
         width: `${widthPct}%`,
         height: `${heightPct}%`,
@@ -76,13 +94,35 @@ function AreaOverlay({
 }
 
 function MockMapInner(props: MapRenderProps) {
-  const { locations, center, selectedId, onSelectLocation, area, heightClassName } = props
+  const {
+    locations,
+    center,
+    selectedId,
+    onSelectLocation,
+    area,
+    areas,
+    selectedAreaId,
+    onSelectArea,
+    editMode,
+    heightClassName,
+  } = props
   const mappable = locations.filter(
     (l): l is typeof l & { lat: number; lng: number } =>
       l.lat != null && l.lng != null,
   )
   const xs = mappable.map((l) => l.lng)
   const ys = mappable.map((l) => l.lat)
+  // Also include area centers so zones are visible even if there are no
+  // mappable locations yet.
+  if (areas) {
+    for (const a of areas) {
+      xs.push(a.center.lng)
+      ys.push(a.center.lat)
+    }
+  } else if (area) {
+    xs.push(area.center.lng)
+    ys.push(area.center.lat)
+  }
   const minX = Math.min(...xs, center.lng) - 0.01
   const maxX = Math.max(...xs, center.lng) + 0.01
   const minY = Math.min(...ys, center.lat) - 0.01
@@ -93,6 +133,16 @@ function MockMapInner(props: MapRenderProps) {
     bottom: `${((lat - minY) / (maxY - minY)) * 100}%`,
   })
 
+  const hasPolygonZone =
+    areas?.some(
+      (a) => (a.polygon?.coordinates?.[0]?.length ?? 0) > 2,
+    ) ?? false
+  const drawingOrEditing =
+    editMode &&
+    (editMode.kind === 'drawingPolygon' ||
+      editMode.kind === 'drawingCircle' ||
+      editMode.kind === 'editing')
+
   return (
     <div
       className={cn(
@@ -100,9 +150,18 @@ function MockMapInner(props: MapRenderProps) {
         heightClassName ?? 'aspect-[4/3]',
       )}
     >
-      {area && (
-        <AreaOverlay area={area} bounds={{ minX, maxX, minY, maxY }} />
+      {area && !areas && (
+        <AreaCircle area={area} bounds={{ minX, maxX, minY, maxY }} />
       )}
+      {(areas ?? []).map((a: MapAreaDescriptor) => (
+        <AreaCircle
+          key={a.id}
+          area={a}
+          bounds={{ minX, maxX, minY, maxY }}
+          selected={a.id === selectedAreaId}
+          onClick={() => onSelectArea?.(a.id)}
+        />
+      ))}
       <div
         className="absolute h-3 w-3 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-foreground bg-background shadow"
         style={{
@@ -128,6 +187,11 @@ function MockMapInner(props: MapRenderProps) {
           </div>
         )
       })}
+      {(hasPolygonZone || drawingOrEditing) && (
+        <p className="pointer-events-none absolute top-2 left-2 right-2 rounded-md bg-background/90 px-2 py-1 text-center text-[11px] font-medium text-muted-foreground shadow-sm backdrop-blur">
+          Connect Google Maps to draw or edit zone shapes
+        </p>
+      )}
       <p className="pointer-events-none absolute bottom-2 left-2 right-2 rounded-md bg-background/80 px-2 py-1 text-center text-[11px] font-medium text-muted-foreground backdrop-blur">
         Schematic map · connect Google Maps for live tiles
       </p>

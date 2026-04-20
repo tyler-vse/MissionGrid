@@ -9,7 +9,7 @@ import {
   ShieldAlert,
   Undo2,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -38,6 +38,7 @@ import {
 import { formatUnknownError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import type { Location } from '@/domain/models/location'
+import { PlacesMapEditor } from '@/features/admin/PlacesMapEditor'
 
 type Filter = 'active' | 'no_go' | 'archived' | 'all'
 
@@ -59,6 +60,16 @@ export function AdminPlaces() {
   const [search, setSearch] = useState('')
   const [noGoTarget, setNoGoTarget] = useState<Location | null>(null)
   const [noGoReason, setNoGoReason] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const rowRefs = useRef<Record<string, HTMLLIElement | null>>({})
+
+  useEffect(() => {
+    if (!selectedId) return
+    const node = rowRefs.current[selectedId]
+    if (node) {
+      node.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [selectedId])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -152,6 +163,12 @@ export function AdminPlaces() {
         description="Remove stops that no longer apply, or red-flag any place where a business asked not to receive flyers."
       />
 
+      <PlacesMapEditor
+        locations={filtered}
+        selectedLocationId={selectedId}
+        onSelectLocation={setSelectedId}
+      />
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -221,11 +238,19 @@ export function AdminPlaces() {
           {filtered.map((loc) => (
             <li
               key={loc.id}
+              ref={(node) => {
+                rowRefs.current[loc.id] = node
+              }}
+              onClick={() =>
+                setSelectedId((prev) => (prev === loc.id ? null : loc.id))
+              }
               className={cn(
-                'rounded-2xl border bg-card p-4 shadow-sm',
+                'cursor-pointer rounded-2xl border bg-card p-4 shadow-sm transition-colors',
                 loc.status === 'no_go' &&
                   'border-destructive/40 bg-destructive/5',
                 loc.archivedAt && 'opacity-70',
+                selectedId === loc.id &&
+                  'border-primary ring-2 ring-primary/40',
               )}
             >
               <div className="flex items-start justify-between gap-3">
@@ -262,7 +287,10 @@ export function AdminPlaces() {
                   )}
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
+              <div
+                className="mt-3 flex flex-wrap gap-2 border-t pt-3"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {loc.archivedAt ? (
                   <Button
                     size="sm"
