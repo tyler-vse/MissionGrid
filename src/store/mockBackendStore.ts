@@ -120,6 +120,11 @@ export interface MockBackendState {
   addShiftMember: (
     input: Omit<ShiftMember, 'id' | 'joinedAt'> & { joinedAt?: string },
   ) => ShiftMember
+  updateShiftMember: (
+    id: string,
+    patch: Partial<Omit<ShiftMember, 'id' | 'shiftId' | 'joinedAt'>>,
+  ) => ShiftMember | null
+  removeShiftMember: (id: string) => boolean
   resetToEmpty: () => void
 }
 
@@ -676,6 +681,31 @@ export const useMockBackendStore = create<MockBackendState>((set, get) => ({
     }
     set((s) => ({ shiftMembers: [...s.shiftMembers, record] }))
     return record
+  },
+
+  updateShiftMember: (id, patch) => {
+    let updated: ShiftMember | null = null
+    set((s) => ({
+      shiftMembers: s.shiftMembers.map((m) => {
+        if (m.id !== id) return m
+        updated = { ...m, ...patch, id: m.id, shiftId: m.shiftId }
+        return updated
+      }),
+    }))
+    return updated
+  },
+
+  removeShiftMember: (id) => {
+    let removed = false
+    set((s) => {
+      const next = s.shiftMembers.filter((m) => {
+        if (m.id !== id) return true
+        removed = true
+        return false
+      })
+      return removed ? { shiftMembers: next } : {}
+    })
+    return removed
   },
 
   resetToEmpty: () =>

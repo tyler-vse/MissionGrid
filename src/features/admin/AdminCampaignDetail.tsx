@@ -301,8 +301,11 @@ export function AdminCampaignDetail() {
           </h2>
           <ul className="divide-y text-sm">
             {report.shifts.map((s) => (
-              <li key={s.shiftId} className="py-3">
-                <div className="flex items-start justify-between gap-3">
+              <li key={s.shiftId}>
+                <Link
+                  to={`/admin/shifts/${s.shiftId}`}
+                  className="group flex items-start justify-between gap-3 py-3 transition-colors hover:bg-muted/40 focus:bg-muted/40 focus:outline-none"
+                >
                   <div className="min-w-0">
                     <p className="font-semibold">
                       {s.leaderName}
@@ -325,7 +328,7 @@ export function AdminCampaignDetail() {
                       {s.stopsDone} done · {s.stopsSkipped} skipped
                     </p>
                   </div>
-                </div>
+                </Link>
               </li>
             ))}
           </ul>

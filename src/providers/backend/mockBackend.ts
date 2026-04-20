@@ -1,6 +1,7 @@
 import { computeProgress } from '@/domain/services/progress'
 import type { Location } from '@/domain/models/location'
 import type { ServiceArea } from '@/domain/models/serviceArea'
+import type { Shift, ShiftMember } from '@/domain/models/shift'
 import type {
   BackendProvider,
   RecentActivityEvent,
@@ -526,5 +527,57 @@ export const mockBackend: BackendProvider = {
         (a, b) =>
           new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime(),
       )
+  },
+
+  async updateShift(shiftId, patch) {
+    const store = useMockBackendStore.getState()
+    const existing = store.shifts.find((s) => s.id === shiftId)
+    if (!existing) throw new Error('Shift not found')
+    const next: Partial<Shift> = {}
+    if (patch.startedAt !== undefined) next.startedAt = patch.startedAt
+    if (patch.endedAt !== undefined)
+      next.endedAt = patch.endedAt ?? undefined
+    if (patch.partySize !== undefined)
+      next.partySize = Math.max(1, Math.min(50, patch.partySize || 1))
+    if (patch.status !== undefined) next.status = patch.status
+    if (patch.leaderVolunteerId !== undefined)
+      next.leaderVolunteerId = patch.leaderVolunteerId
+    if (patch.campaignId !== undefined)
+      next.campaignId = patch.campaignId ?? undefined
+    if (patch.timeWindowMinutes !== undefined)
+      next.timeWindowMinutes = patch.timeWindowMinutes
+    const updated = store.updateShift(shiftId, next)
+    if (!updated) throw new Error('Shift not found')
+    return updated
+  },
+
+  async addShiftMember(shiftId, input) {
+    const store = useMockBackendStore.getState()
+    const shift = store.shifts.find((s) => s.id === shiftId)
+    if (!shift) throw new Error('Shift not found')
+    const trimmed = input.displayName.trim()
+    if (!trimmed) throw new Error('name_required')
+    return store.addShiftMember({
+      shiftId,
+      displayName: trimmed,
+      firstName: input.firstName?.trim() || trimmed,
+    })
+  },
+
+  async updateShiftMember(memberId, patch) {
+    const store = useMockBackendStore.getState()
+    const next: Partial<Omit<ShiftMember, 'id' | 'shiftId' | 'joinedAt'>> = {}
+    if (patch.displayName !== undefined) next.displayName = patch.displayName
+    if (patch.firstName !== undefined)
+      next.firstName = patch.firstName ?? undefined
+    if (patch.leftAt !== undefined) next.leftAt = patch.leftAt ?? undefined
+    const updated = store.updateShiftMember(memberId, next)
+    if (!updated) throw new Error('Shift member not found')
+    return updated
+  },
+
+  async removeShiftMember(memberId) {
+    const removed = useMockBackendStore.getState().removeShiftMember(memberId)
+    if (!removed) throw new Error('Shift member not found')
   },
 }

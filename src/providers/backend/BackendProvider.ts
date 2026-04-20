@@ -91,6 +91,30 @@ export interface ListShiftsInput {
   to?: string
 }
 
+export interface UpdateShiftInput {
+  startedAt?: string
+  /** Pass null to explicitly clear ended_at (re-open shift). */
+  endedAt?: string | null
+  partySize?: number
+  status?: 'active' | 'ended' | 'abandoned'
+  leaderVolunteerId?: string
+  /** Pass null to clear campaign assignment. */
+  campaignId?: string | null
+  timeWindowMinutes?: number
+}
+
+export interface AddShiftMemberInput {
+  displayName: string
+  firstName?: string
+}
+
+export interface UpdateShiftMemberInput {
+  displayName?: string
+  firstName?: string | null
+  /** Pass null to clear left_at (mark member as still present). */
+  leftAt?: string | null
+}
+
 export interface LocationActionInput {
   locationId: string
   volunteerId: string
@@ -168,6 +192,18 @@ export interface BackendProvider {
   updateShiftPartySize?(shiftId: string, partySize: number): Promise<Shift>
   getShift?(shiftId: string): Promise<Shift | null>
   listShifts?(input: ListShiftsInput): Promise<Shift[]>
+
+  /** Admin-only shift editing (optional). */
+  updateShift?(shiftId: string, patch: UpdateShiftInput): Promise<Shift>
+  addShiftMember?(
+    shiftId: string,
+    input: AddShiftMemberInput,
+  ): Promise<ShiftMember>
+  updateShiftMember?(
+    memberId: string,
+    patch: UpdateShiftMemberInput,
+  ): Promise<ShiftMember>
+  removeShiftMember?(memberId: string): Promise<void>
 
   /** Party / walk-up join (optional). */
   generatePartyToken?(shiftId: string, ttlMinutes?: number): Promise<Shift>

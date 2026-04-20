@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   Building2,
+  Clock,
   FileUp,
   LayoutDashboard,
   Link2,
@@ -23,6 +24,8 @@ import { AdminOverview } from '@/features/admin/AdminOverview'
 import { AdminImport } from '@/features/admin/AdminImport'
 import { AdminPlaces } from '@/features/admin/AdminPlaces'
 import { AdminReview } from '@/features/admin/AdminReview'
+import { AdminShiftDetail } from '@/features/admin/AdminShiftDetail'
+import { AdminShifts } from '@/features/admin/AdminShifts'
 import { AdminVolunteers } from '@/features/admin/AdminVolunteers'
 import { cn } from '@/lib/utils'
 import { requireSupabaseClient } from '@/providers/backend/supabaseClient'
@@ -31,6 +34,7 @@ import { useRuntimeConfigStore } from '@/store/runtimeConfigStore'
 const navItems = [
   { to: '/admin', end: true, label: 'Overview', icon: LayoutDashboard },
   { to: '/admin/campaigns', end: false, label: 'Campaigns', icon: Megaphone },
+  { to: '/admin/shifts', end: false, label: 'Shifts', icon: Clock },
   { to: '/admin/places', end: false, label: 'Places', icon: Building2 },
   { to: '/admin/imports', end: false, label: 'Imports', icon: FileUp },
   { to: '/admin/review', end: false, label: 'Review', icon: ShieldCheck },
@@ -132,6 +136,8 @@ export function AdminDashboard() {
           <Route index element={<AdminOverview />} />
           <Route path="campaigns" element={<AdminCampaigns />} />
           <Route path="campaigns/:id" element={<AdminCampaignDetail />} />
+          <Route path="shifts" element={<AdminShifts />} />
+          <Route path="shifts/:id" element={<AdminShiftDetail />} />
           <Route path="places" element={<AdminPlaces />} />
           <Route path="imports" element={<AdminImport />} />
           <Route path="review" element={<AdminReview />} />

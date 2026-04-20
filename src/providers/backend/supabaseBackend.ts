@@ -877,6 +877,74 @@ export function createSupabaseBackend(
       if (error) throw error
       return (data as ShiftMemberRow[]).map(mapShiftMember)
     },
+
+    async updateShift(shiftId, patch) {
+      const supabase = client()
+      const update: Record<string, unknown> = {}
+      if (patch.startedAt !== undefined) update.started_at = patch.startedAt
+      if (patch.endedAt !== undefined) update.ended_at = patch.endedAt ?? null
+      if (patch.partySize !== undefined) update.party_size = patch.partySize
+      if (patch.status !== undefined) update.status = patch.status
+      if (patch.leaderVolunteerId !== undefined)
+        update.leader_volunteer_id = patch.leaderVolunteerId
+      if (patch.campaignId !== undefined)
+        update.campaign_id = patch.campaignId ?? null
+      if (patch.timeWindowMinutes !== undefined)
+        update.time_window_minutes = patch.timeWindowMinutes
+      const { data, error } = await supabase
+        .from('shifts')
+        .update(update)
+        .eq('id', shiftId)
+        .select('*')
+        .single()
+      if (error) throw error
+      if (!data) throw new Error('updateShift returned no row')
+      return mapShift(data as ShiftRow)
+    },
+
+    async addShiftMember(shiftId, input) {
+      const supabase = client()
+      const { data, error } = await supabase
+        .from('shift_members')
+        .insert({
+          shift_id: shiftId,
+          display_name: input.displayName,
+          first_name: input.firstName ?? null,
+        })
+        .select('*')
+        .single()
+      if (error) throw error
+      if (!data) throw new Error('addShiftMember returned no row')
+      return mapShiftMember(data as ShiftMemberRow)
+    },
+
+    async updateShiftMember(memberId, patch) {
+      const supabase = client()
+      const update: Record<string, unknown> = {}
+      if (patch.displayName !== undefined)
+        update.display_name = patch.displayName
+      if (patch.firstName !== undefined)
+        update.first_name = patch.firstName ?? null
+      if (patch.leftAt !== undefined) update.left_at = patch.leftAt ?? null
+      const { data, error } = await supabase
+        .from('shift_members')
+        .update(update)
+        .eq('id', memberId)
+        .select('*')
+        .single()
+      if (error) throw error
+      if (!data) throw new Error('updateShiftMember returned no row')
+      return mapShiftMember(data as ShiftMemberRow)
+    },
+
+    async removeShiftMember(memberId) {
+      const supabase = client()
+      const { error } = await supabase
+        .from('shift_members')
+        .delete()
+        .eq('id', memberId)
+      if (error) throw error
+    },
   }
 
   return backend
