@@ -184,18 +184,15 @@ export function parseLocationCsvPreview(text: string): {
       data.lat !== undefined && data.lat !== null && !Number.isNaN(data.lat)
     const hasLng =
       data.lng !== undefined && data.lng !== null && !Number.isNaN(data.lng)
+    // Address-only rows are the common case (most CSVs don't ship lat/lng),
+    // so we don't flag them as warnings. The genuinely-suspicious cases get
+    // called out: one-sided coords and the Null Island 0,0 sentinel.
     const isNullIsland = hasLat && hasLng && data.lat === 0 && data.lng === 0
     if (hasLat !== hasLng) {
       issues.push({
         severity: 'warning',
         message:
           'Only one of latitude/longitude set — will import without coordinates.',
-      })
-    } else if (!hasLat && !hasLng) {
-      issues.push({
-        severity: 'warning',
-        message:
-          'No coordinates — will geocode from the address during import.',
       })
     } else if (isNullIsland) {
       issues.push({

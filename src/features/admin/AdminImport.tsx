@@ -3,17 +3,24 @@ import {
   CheckCircle2,
   Copy,
   FileUp,
-  MapPin,
+  Loader2,
   Upload,
   XCircle,
 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
-import { InlineAlert } from '@/components/ui/inline-alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import { SectionHeader } from '@/components/ui/section-header'
 import { Textarea } from '@/components/ui/textarea'
 import { useImportLocationsFromCsv } from '@/data/useImportLocationsFromCsv'
@@ -38,10 +45,10 @@ const steps: { id: Step; label: string }[] = [
 function rowStatus(r: CsvPreviewRow): 'error' | 'duplicate' | 'warning' | 'ok' {
   if (r.issues.some((i) => i.severity === 'error')) return 'error'
   if (r.isDuplicate) return 'duplicate'
-  if (r.data && (r.data.lat === undefined || r.data.lng === undefined)) {
-    return 'warning'
-  }
-  if (r.issues.length) return 'warning'
+  // Only genuine issues (one-sided coords, Null Island, geocode failures) land
+  // in Warnings. Address-only rows are the common case and go to Ready — they
+  // get geocoded automatically on Import.
+  if (r.issues.some((i) => i.severity === 'warning')) return 'warning'
   return 'ok'
 }
 
@@ -52,7 +59,10 @@ export function AdminImport() {
   const [step, setStep] = useState<Step>('upload')
   const [text, setText] = useState('')
   const [preview, setPreview] = useState<CsvPreviewRow[]>([])
-  const [geoProgress, setGeoProgress] = useState<string | null>(null)
+  const [geoProgress, setGeoProgress] = useState<{
+    done: number
+    total: number
+  } | null>(null)
   const [includeDuplicates, setIncludeDuplicates] = useState(false)
 
   const runPreview = useCallback((raw: string) => {
@@ -90,8 +100,14 @@ export function AdminImport() {
     return buckets
   }, [preview])
 
-  const needsGeocoding = grouped.warning.filter(
-    (r) => r.data && (r.data.lat === undefined || r.data.lng === undefined),
+  // Any parseable row that lacks usable coordinates is a geocode candidate,
+  // regardless of which bucket it landed in. Errors are excluded so we don't
+  // waste API calls on rows the user will drop anyway.
+  const needsGeocoding = preview.filter(
+    (r) =>
+      r.data &&
+      !r.issues.some((i) => i.severity === 'error') &&
+      (r.data.lat === undefined || r.data.lng === undefined),
   )
 
   const importable = previewRowsToImportable(preview, { includeDuplicates })
@@ -124,11 +140,10 @@ export function AdminImport() {
       return preview
     }
 
-    setGeoProgress(`Geocoding 0 / ${items.length}…`)
+    setGeoProgress({ done: 0, total: items.length })
     const results = await geocodeBatch(registry.geocoding, items, {
       delayMs: 120,
-      onProgress: (done, total) =>
-        setGeoProgress(`Geocoding ${done} / ${total}…`),
+      onProgress: (done, total) => setGeoProgress({ done, total }),
     })
 
     const next = [...preview]
@@ -221,7 +236,7 @@ export function AdminImport() {
     <div className="space-y-6">
       <SectionHeader
         title="Import places"
-        description="Load a CSV, review, geocode, then import into your organization."
+        description="Load a CSV, review any issues, then import. Addresses without coordinates are geocoded for you."
       />
 
       {/* Stepper */}
@@ -383,24 +398,11 @@ Example Market,"100 Main St",39.74,-104.99,Denver,CO,80202,`}
           {grouped.warning.length > 0 && (
             <GroupSection
               title="Warnings"
-              description="Mostly missing coordinates. Geocode to resolve most of these."
+              description="These rows have odd coordinate data. They'll still import, and we'll geocode from the address where we can."
               tone="warning"
               rows={grouped.warning}
               onRemove={(n) =>
                 setPreview((prev) => prev.filter((r) => r.rowNumber !== n))
-              }
-              trailing={
-                needsGeocoding.length > 0 ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void geocodeMissing()}
-                    disabled={Boolean(geoProgress)}
-                  >
-                    <MapPin className="h-4 w-4" />
-                    {geoProgress ?? `Geocode ${needsGeocoding.length}`}
-                  </Button>
-                ) : null
               }
             />
           )}
@@ -408,7 +410,11 @@ Example Market,"100 Main St",39.74,-104.99,Denver,CO,80202,`}
           {grouped.ok.length > 0 && (
             <GroupSection
               title="Ready"
-              description="Validated rows ready to import."
+              description={
+                needsGeocoding.length > 0
+                  ? 'Ready to import. Any rows without coordinates will be geocoded from the address automatically.'
+                  : 'Validated rows ready to import.'
+              }
               tone="success"
               rows={grouped.ok.slice(0, 10)}
               hiddenCount={Math.max(0, grouped.ok.length - 10)}
@@ -418,21 +424,39 @@ Example Market,"100 Main St",39.74,-104.99,Denver,CO,80202,`}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-sm">
             <p className="text-sm">
               <span className="font-semibold">{importable.length}</span>{' '}
-              place{importable.length === 1 ? '' : 's'} will be imported.
+              place{importable.length === 1 ? '' : 's'} will be imported
+              {needsGeocoding.length > 0 && (
+                <>
+                  {' '}
+                  <span className="text-muted-foreground">
+                    ({needsGeocoding.length} will be geocoded from address)
+                  </span>
+                </>
+              )}
+              .
             </p>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={startOver}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={startOver}
+                disabled={Boolean(geoProgress) || importMutation.isPending}
+              >
                 Start over
               </Button>
               <Button
                 onClick={() => void doImport()}
                 disabled={
-                  importMutation.isPending || importable.length === 0
+                  importMutation.isPending ||
+                  Boolean(geoProgress) ||
+                  importable.length === 0
                 }
               >
                 {importMutation.isPending
                   ? 'Importing…'
-                  : `Import ${importable.length}`}
+                  : geoProgress
+                    ? 'Geocoding…'
+                    : `Import ${importable.length}`}
               </Button>
             </div>
           </div>
@@ -452,11 +476,38 @@ Example Market,"100 Main St",39.74,-104.99,Denver,CO,80202,`}
         />
       )}
 
-      {geoProgress && (
-        <InlineAlert tone="info" title="Geocoding in progress">
-          {geoProgress}
-        </InlineAlert>
-      )}
+      <Dialog open={Boolean(geoProgress)}>
+        <DialogContent
+          hideClose
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          className="sm:max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Geocoding addresses
+            </DialogTitle>
+            <DialogDescription>
+              Matching each address with Google Maps. Please keep this tab open
+              — this should only take a moment.
+            </DialogDescription>
+          </DialogHeader>
+          {geoProgress && (
+            <div className="space-y-2">
+              <Progress
+                value={
+                  (geoProgress.done / Math.max(1, geoProgress.total)) * 100
+                }
+              />
+              <p className="text-sm tabular-nums text-muted-foreground">
+                {geoProgress.done} of {geoProgress.total} addresses processed
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
