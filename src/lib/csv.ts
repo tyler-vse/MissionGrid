@@ -9,13 +9,21 @@ import { z } from 'zod'
 // literal `(0, 0)` coordinates. Collapse empty/whitespace/null to `undefined`
 // before coercion so those rows correctly fall into the "needs geocoding"
 // bucket instead of getting pinned to Null Island.
-const coord = z
-  .preprocess((v) => {
+//
+// Note: `.optional()` MUST live inside the preprocess. Zod's outer `.optional()`
+// only short-circuits when the *original* input is undefined, so placing it
+// outside lets an empty-string input flow through preprocess (which returns
+// undefined) into `z.coerce.number()` (which coerces undefined → NaN) and fails
+// `.finite()` with "Invalid input". Putting `.optional()` inside lets the inner
+// schema accept the undefined that preprocess produces.
+const coord = z.preprocess(
+  (v) => {
     if (v === undefined || v === null) return undefined
     if (typeof v === 'string' && v.trim() === '') return undefined
     return v
-  }, z.coerce.number().finite())
-  .optional()
+  },
+  z.coerce.number().finite().optional(),
+)
 
 const rowSchema = z.object({
   name: z.string().min(1),
